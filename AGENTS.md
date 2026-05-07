@@ -115,10 +115,14 @@ rarity-map/
 
 Backend preprocessing is currently implemented through:
 
+- `pipeline/scripts/run_pipeline.py` for end-to-end execution
 - `pipeline/scripts/01_filter_to_parquet.py`
 - `pipeline/scripts/02_compute_species_occupancy.py`
 - `pipeline/scripts/03_compute_cell_scores.py`
 - `pipeline/scripts/04_generate_pmtiles.py`
+
+The four numbered steps can still be run individually. Use `run_pipeline.py`
+when all steps should run in sequence from raw TSV to PMTiles.
 
 Default processed outputs:
 

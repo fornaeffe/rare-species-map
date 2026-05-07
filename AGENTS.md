@@ -63,6 +63,7 @@ This is extremely important and should not be changed unless explicitly requeste
 - DuckDB
 - H3
 - Parquet
+- freestiler for PMTiles generation
 - UV for dependency management
 
 Important:
@@ -112,6 +113,20 @@ rarity-map/
 
 # Data pipeline
 
+Backend preprocessing is currently implemented through:
+
+- `pipeline/scripts/01_filter_to_parquet.py`
+- `pipeline/scripts/02_compute_species_occupancy.py`
+- `pipeline/scripts/03_compute_cell_scores.py`
+- `pipeline/scripts/04_generate_pmtiles.py`
+
+Default processed outputs:
+
+- `data/processed/observations_filtered.parquet`
+- `data/processed/species_occupancy.parquet`
+- `data/processed/cell_scores.parquet`
+- `data/tiles/rare_species_cells.pmtiles`
+
 ## Step 1
 
 Script:
@@ -134,22 +149,66 @@ Important:
 
 ## Step 2
 
-Compute species occupancy.
+Script:
+scripts/02_compute_species_occupancy.py
+
+Compute species occupancy and rarity.
 
 occupancy =
 number of distinct H3 resolution 7 cells occupied by each species.
+
+rarity =
+1 / sqrt(occupancy)
+
+Output:
+data/processed/species_occupancy.parquet
 
 ---
 
 ## Step 3
 
+Script:
+scripts/03_compute_cell_scores.py
+
 Compute rarity score per H3 resolution 8 cell.
+
+For each H3 resolution 8 cell:
+
+- count_observations counts all observations
+- count_species counts distinct species in the cell
+- sum_rarity sums species rarity once per distinct species present in the cell
+
+Then fit:
+
+log(sum_rarity) ~ log(count_observations)
+
+The output score is the residual:
+
+rarity_score =
+log_sum_rarity - expected_log_sum_rarity
+
+Output:
+data/processed/cell_scores.parquet
 
 ---
 
 ## Step 4
 
-Generate PMTiles vector tiles.
+Script:
+scripts/04_generate_pmtiles.py
+
+Generate PMTiles vector tiles for the frontend.
+
+The current backend uses `freestiler`, not tippecanoe.
+
+The script exports a temporary/debug GeoJSONSeq representation of H3 polygons,
+then uses freestiler to generate PMTiles. GeoJSONSeq is an intermediate/debug
+artifact, not the frontend format.
+
+The frontend should consume PMTiles vector tiles rather than raw GeoJSON.
+
+Output:
+data/tiles/rare_species_cells.pmtiles
 
 ---
 

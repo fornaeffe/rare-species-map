@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Rare Species Map">
+  <rect width="64" height="64" rx="12" fill="#10201a" />
+  <path d="M33 9c9 7 14 16 14 27 0 10-6 17-15 17S17 46 17 36C17 25 23 16 33 9Z" fill="#44b985" />
+  <path d="M32 18c-4 7-6 14-6 22m6-22c5 8 7 16 7 29M24 32c5 2 10 2 16-1" stroke="#f2fbf5" stroke-width="3" stroke-linecap="round" fill="none" />
+</svg>

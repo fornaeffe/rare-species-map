@@ -5,11 +5,15 @@ __pycache__/
 
 # Node
 node_modules/
+web/build/
+web/.svelte-kit/
+web/dev-server*.log
 
 # Data
 data/raw/
 data/processed/
 data/tiles/
+web/static/tiles/*.pmtiles
 
 # duckdb
 .duckdb/

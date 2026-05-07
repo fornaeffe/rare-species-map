@@ -53,6 +53,25 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--diagnostics-output-dir",
+        default=str(DATA_PROCESSED / "diagnostics" / "cell_scores"),
+        help="Step 3 diagnostic plots output directory",
+    )
+
+    parser.add_argument(
+        "--diagnostics-sample-size",
+        type=int,
+        default=200_000,
+        help="Maximum number of H3 cells to sample for Step 3 diagnostic plots",
+    )
+
+    parser.add_argument(
+        "--no-diagnostics",
+        action="store_true",
+        help="Pass --no-diagnostics to Step 3",
+    )
+
+    parser.add_argument(
         "--tiles-output",
         default=str(DATA_TILES / "rare_species_cells.pmtiles"),
         help="Step 4 output PMTiles path",
@@ -184,6 +203,7 @@ def build_steps(args: argparse.Namespace) -> dict[int, tuple[str, list[str]]]:
     observations_output = as_path(args.observations_output)
     species_occupancy_output = as_path(args.species_occupancy_output)
     cell_scores_output = as_path(args.cell_scores_output)
+    diagnostics_output_dir = as_path(args.diagnostics_output_dir)
     tiles_output = as_path(args.tiles_output)
 
     step_1 = [
@@ -219,7 +239,14 @@ def build_steps(args: argparse.Namespace) -> dict[int, tuple[str, list[str]]]:
         str(species_occupancy_output),
         "--output",
         str(cell_scores_output),
+        "--diagnostics-output-dir",
+        str(diagnostics_output_dir),
+        "--diagnostics-sample-size",
+        str(args.diagnostics_sample_size),
     ]
+
+    if args.no_diagnostics:
+        step_3.append("--no-diagnostics")
 
     step_4 = [
         sys.executable,

@@ -17,6 +17,8 @@ web/static/tiles/*.pmtiles
 
 # duckdb
 .duckdb/
+pipeline/.duckdb_freestiler_home/
+pipeline/.matplotlib/
 duckdb.exe
 
 # OS

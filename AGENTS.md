@@ -194,6 +194,17 @@ log_sum_rarity - expected_log_sum_rarity
 Output:
 data/processed/cell_scores.parquet
 
+Step 3 also produces diagnostic plots by default:
+
+- `sum_rarity_vs_count_observations.png`
+- `log_sum_rarity_vs_log_count_observations.png`
+- `residuals_qqplot.png`
+
+Default diagnostics directory:
+data/processed/diagnostics/cell_scores
+
+Use `--no-diagnostics` to skip plot generation.
+
 ---
 
 ## Step 4

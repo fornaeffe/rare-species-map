@@ -1,0 +1,23 @@
+# Python
+pipeline/.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+
+# Data
+data/raw/
+data/processed/
+data/tiles/
+
+# duckdb
+.duckdb/
+duckdb.exe
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/settings.json

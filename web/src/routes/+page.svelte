@@ -50,20 +50,26 @@
   const initialCenter: LngLatLike = [12.45, 42.7];
 
   let mapContainer: HTMLDivElement;
-  let map: Map | undefined;
-  let popup: Popup | undefined;
-  let protocol: Protocol | undefined;
-  let isMapReady = false;
-  let tileError = '';
-  let metric: Metric = 'rarity_score';
-  let opacity = 72;
-  let scoreFloor = -1.5;
-  let selectedCell: CellProperties | undefined;
-  let hoveredH3 = '';
+  let map = $state<Map | undefined>();
+  let popup = $state<Popup | undefined>();
+  let protocol = $state<Protocol | undefined>();
+  let isMapReady = $state(false);
+  let tileError = $state('');
+  let metric = $state<Metric>('rarity_score');
+  let opacity = $state(72);
+  let scoreFloor = $state(-1.5);
+  let selectedCell = $state<CellProperties | undefined>();
+  let hoveredH3 = $state('');
 
-  $: if (isMapReady) {
+  $effect(() => {
+    metric;
+    opacity;
+    scoreFloor;
+    isMapReady;
+
+    if (!isMapReady) return;
     updateCellLayers();
-  }
+  });
 
   onMount(() => {
     protocol = new Protocol();
@@ -366,7 +372,7 @@
             type="button"
             class:active={metric === key}
             aria-pressed={metric === key}
-            on:click={() => (metric = key as Metric)}
+            onclick={() => (metric = key as Metric)}
           >
             <MetricIcon size={15} />
             <span>{label}</span>
@@ -379,13 +385,26 @@
       <label class="slider-row">
         <span>Opacity</span>
         <strong>{opacity}%</strong>
-        <input type="range" min="20" max="92" bind:value={opacity} />
+        <input
+          type="range"
+          min="20"
+          max="92"
+          value={opacity}
+          oninput={(event) => (opacity = event.currentTarget.valueAsNumber)}
+        />
       </label>
 
       <label class="slider-row">
         <span>Score floor</span>
         <strong>{scoreFloor.toFixed(1)}</strong>
-        <input type="range" min="-3" max="2" step="0.1" bind:value={scoreFloor} />
+        <input
+          type="range"
+          min="-3"
+          max="2"
+          step="0.1"
+          value={scoreFloor}
+          oninput={(event) => (scoreFloor = event.currentTarget.valueAsNumber)}
+        />
       </label>
     </div>
 
@@ -437,18 +456,18 @@
   </aside>
 
   <nav class="map-actions" aria-label="Map navigation">
-    <button type="button" on:click={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in">
+    <button type="button" onclick={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in">
       <Plus size={18} />
     </button>
-    <button type="button" on:click={() => zoomBy(-1)} aria-label="Zoom out" title="Zoom out">
+    <button type="button" onclick={() => zoomBy(-1)} aria-label="Zoom out" title="Zoom out">
       <Minus size={18} />
     </button>
-    <button type="button" on:click={resetView} aria-label="Reset view" title="Reset view">
+    <button type="button" onclick={resetView} aria-label="Reset view" title="Reset view">
       <LocateFixed size={18} />
     </button>
     <button
       type="button"
-      on:click={() => updateCellLayers()}
+      onclick={() => updateCellLayers()}
       aria-label="Refresh style"
       title="Refresh style"
     >

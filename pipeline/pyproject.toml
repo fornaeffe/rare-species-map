@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "duckdb>=1.5.2",
+    "freestiler>=0.1.6",
     "h3>=4.4.2",
     "numpy>=2.4.4",
     "polars>=1.40.1",

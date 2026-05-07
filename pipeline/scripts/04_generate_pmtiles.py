@@ -196,6 +196,7 @@ def run_tippecanoe(
         str(max_zoom),
         "--drop-densest-as-needed",
         "--extend-zooms-if-still-dropping",
+        "-P",
         "--read-parallel",
         str(geojsonseq_path),
     ]

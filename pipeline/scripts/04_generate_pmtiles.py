@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
-import subprocess
+import os
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
+from freestiler import freestile_file
 import h3
 
 PIPELINE_ROOT = Path(__file__).resolve().parents[1]
@@ -69,15 +69,42 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--tippecanoe",
+        "--tile-format",
+        choices=("mvt", "mlt"),
+        default="mvt",
+        help="Tile encoding format. Use mvt for broad MapLibre compatibility.",
+    )
+
+    parser.add_argument(
+        "--base-zoom",
+        type=int,
         default=None,
-        help="Path to tippecanoe executable. Defaults to resolving it from PATH.",
+        help="Zoom level at and above which all features are kept. Defaults to max zoom.",
+    )
+
+    parser.add_argument(
+        "--drop-rate",
+        type=float,
+        default=None,
+        help="Optional exponential feature thinning rate at lower zooms.",
+    )
+
+    parser.add_argument(
+        "--coalesce",
+        action="store_true",
+        help="Merge features with identical attributes within each tile",
+    )
+
+    parser.add_argument(
+        "--no-simplification",
+        action="store_true",
+        help="Disable geometry snapping/simplification in freestiler",
     )
 
     parser.add_argument(
         "--geojsonseq",
         default=None,
-        help="Optional GeoJSONSeq output path. Useful for debugging or external tiling.",
+        help="Optional GeoJSONSeq output path. Useful for debugging.",
     )
 
     parser.add_argument(
@@ -90,6 +117,12 @@ def parse_args() -> argparse.Namespace:
         "--geojsonseq-only",
         action="store_true",
         help="Only export GeoJSONSeq and skip PMTiles generation",
+    )
+
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Suppress freestiler progress output",
     )
 
     return parser.parse_args()
@@ -157,51 +190,43 @@ def export_geojsonseq(input_path: Path, output_path: Path, batch_size: int) -> i
     return n_features
 
 
-def resolve_tippecanoe(explicit_path: str | None) -> str:
-    if explicit_path is not None:
-        path = Path(explicit_path)
-        if path.exists():
-            return str(path)
-        raise FileNotFoundError(f"Tippecanoe executable not found: {path}")
-
-    executable = shutil.which("tippecanoe")
-    if executable is None:
-        raise FileNotFoundError(
-            "Tippecanoe was not found in PATH. Install tippecanoe or pass "
-            "--tippecanoe with the executable path. On Windows, running this "
-            "script from WSL is usually the easiest option."
-        )
-
-    return executable
+def configure_freestiler_duckdb_home() -> None:
+    duckdb_home = PIPELINE_ROOT / ".duckdb_freestiler_home"
+    duckdb_home.mkdir(parents=True, exist_ok=True)
+    os.environ["HOME"] = str(duckdb_home)
+    os.environ["USERPROFILE"] = str(duckdb_home)
 
 
-def run_tippecanoe(
-    tippecanoe_path: str,
+def run_freestiler(
     geojsonseq_path: Path,
     output_path: Path,
     layer_name: str,
     min_zoom: int,
     max_zoom: int,
+    tile_format: str,
+    base_zoom: int | None,
+    drop_rate: float | None,
+    coalesce: bool,
+    simplification: bool,
+    quiet: bool,
 ) -> None:
-    command = [
-        tippecanoe_path,
-        "--force",
-        "--output",
-        str(output_path),
-        "--layer",
-        layer_name,
-        "--minimum-zoom",
-        str(min_zoom),
-        "--maximum-zoom",
-        str(max_zoom),
-        "--drop-densest-as-needed",
-        "--extend-zooms-if-still-dropping",
-        "-P",
-        "--read-parallel",
-        str(geojsonseq_path),
-    ]
+    configure_freestiler_duckdb_home()
 
-    subprocess.run(command, check=True)
+    freestile_file(
+        geojsonseq_path,
+        output_path,
+        layer_name=layer_name,
+        tile_format=tile_format,
+        min_zoom=min_zoom,
+        max_zoom=max_zoom,
+        base_zoom=base_zoom,
+        drop_rate=drop_rate,
+        coalesce=coalesce,
+        simplification=simplification,
+        overwrite=True,
+        quiet=quiet,
+        engine="duckdb",
+    )
 
 
 def main() -> None:
@@ -215,6 +240,12 @@ def main() -> None:
 
     if args.min_zoom < 0 or args.max_zoom < args.min_zoom:
         raise ValueError("--max-zoom must be greater than or equal to --min-zoom")
+
+    if args.base_zoom is not None and not args.min_zoom <= args.base_zoom <= args.max_zoom:
+        raise ValueError("--base-zoom must be between --min-zoom and --max-zoom")
+
+    if args.drop_rate is not None and args.drop_rate <= 0:
+        raise ValueError("--drop-rate must be greater than 0")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -242,6 +273,7 @@ def main() -> None:
     print(f"Layer       : {args.layer}")
     print(f"H3 res      : {H3_VISUALIZATION_RESOLUTION}")
     print(f"Zooms       : {args.min_zoom}-{args.max_zoom}")
+    print(f"Tile format : {args.tile_format}")
     print()
 
     try:
@@ -258,17 +290,21 @@ def main() -> None:
             print("GeoJSONSeq export completed.")
             return
 
-        tippecanoe_path = resolve_tippecanoe(args.tippecanoe)
-        print(f"Running tippecanoe: {tippecanoe_path}")
+        print("Running freestiler...")
         print()
 
-        run_tippecanoe(
-            tippecanoe_path=tippecanoe_path,
+        run_freestiler(
             geojsonseq_path=geojsonseq_path,
             output_path=output_path,
             layer_name=args.layer,
             min_zoom=args.min_zoom,
             max_zoom=args.max_zoom,
+            tile_format=args.tile_format,
+            base_zoom=args.base_zoom,
+            drop_rate=args.drop_rate,
+            coalesce=args.coalesce,
+            simplification=not args.no_simplification,
+            quiet=args.quiet,
         )
 
         print()

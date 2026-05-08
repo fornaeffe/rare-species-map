@@ -244,7 +244,7 @@ button {
   border-radius: 999px;
 }
 
-.legend-ramp.metric-rarity_score {
+.legend-ramp.metric-rarity_zscore {
   background: linear-gradient(90deg, #31517a, #72958a, #f2e9c9, #e6914f, #b72f4a, #5f1635);
 }
 

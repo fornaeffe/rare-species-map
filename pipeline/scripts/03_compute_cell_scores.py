@@ -81,7 +81,8 @@ def build_aggregation_query(
     WITH observations AS (
         SELECT
             h3_resHigh,
-            speciesKey
+            speciesKey,
+            recordedBy
         FROM parquet_scan('{observations_path.as_posix()}')
         WHERE
             h3_resHigh IS NOT NULL
@@ -112,16 +113,56 @@ def build_aggregation_query(
         INNER JOIN parquet_scan('{species_occupancy_path.as_posix()}') AS species_occupancy
             ON species_by_cell.speciesKey = species_occupancy.speciesKey
         GROUP BY species_by_cell.h3_resHigh
+    ),
+
+    observer_counts_by_cell AS (
+        SELECT
+            h3_resHigh,
+            recordedBy,
+            COUNT(*) AS obs_by_observer
+        FROM observations
+        GROUP BY h3_resHigh, recordedBy
+    ),
+
+    shannon_by_cell AS (
+        SELECT
+            o.h3_resHigh,
+            -SUM( (o.obs_by_observer::DOUBLE / ob.count_observations) * LN(o.obs_by_observer::DOUBLE / ob.count_observations) ) AS shannon_H
+        FROM observer_counts_by_cell o
+        JOIN observations_by_cell ob
+            ON o.h3_resHigh = ob.h3_resHigh
+        GROUP BY o.h3_resHigh
+    ),
+
+    neff_by_cell AS (
+        SELECT
+            h3_resHigh,
+            shannon_H,
+            EXP(shannon_H) AS neff_observers
+        FROM shannon_by_cell
+    ),
+
+    confidence_by_cell AS (
+        SELECT
+            h3_resHigh,
+            neff_observers,
+            1 - EXP( - neff_observers / 4 ) AS confidence_score
+        FROM neff_by_cell
     )
+
+
 
     SELECT
         observations_by_cell.h3_resHigh,
         observations_by_cell.count_observations,
         rarity_by_cell.count_species,
-        rarity_by_cell.sum_rarity
+        rarity_by_cell.sum_rarity,
+        confidence_by_cell.confidence_score
     FROM observations_by_cell
     INNER JOIN rarity_by_cell
         ON observations_by_cell.h3_resHigh = rarity_by_cell.h3_resHigh
+    LEFT JOIN confidence_by_cell
+        ON observations_by_cell.h3_resHigh = confidence_by_cell.h3_resHigh
     WHERE
         observations_by_cell.count_observations > 0
         AND rarity_by_cell.sum_rarity > 0
@@ -132,12 +173,12 @@ def build_aggregation_query(
 def fetch_cell_data(
     observations_path: Path,
     species_occupancy_path: Path,
-) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Fetch aggregated cell statistics from DuckDB.
 
     Returns:
-        (h3_indices, count_observations, count_species, sum_rarity)
+        (h3_indices, count_observations, count_species, sum_rarity, confidence_scores)
     """
     con = get_connection()
     query = build_aggregation_query(observations_path, species_occupancy_path)
@@ -152,18 +193,21 @@ def fetch_cell_data(
     count_observations = []
     count_species = []
     sum_rarity = []
+    confidence_scores = []
 
     for row in result:
         h3_indices.append(row[0])
         count_observations.append(row[1])
         count_species.append(row[2])
         sum_rarity.append(row[3])
+        confidence_scores.append(row[4] if row[4] is not None else 0.0)
 
     return (
         h3_indices,
         np.array(count_observations, dtype=np.float64),
         np.array(count_species, dtype=np.float64),
         np.array(sum_rarity, dtype=np.float64),
+        np.array(confidence_scores, dtype=np.float64)
     )
 
 
@@ -174,11 +218,13 @@ def export_scores_to_parquet(
     count_species: np.ndarray,
     sum_rarity: np.ndarray,
     gam_result: Any,
+    confidence_scores: np.ndarray,
 ) -> None:
     """
     Export GAM-computed scores to Parquet file.
 
     Saves all original columns plus GAM-computed columns.
+    Multiplies rarity_zscore by confidence_score for each cell.
     """
     try:
         import pyarrow as pa
@@ -198,6 +244,9 @@ def export_scores_to_parquet(
     residual_std = gam_result.residual_std
     zscores = gam_result.zscores
 
+    # Apply confidence weighting to z-scores
+    weighted_zscores = zscores * confidence_scores
+
     # Create PyArrow table
     table = pa.table(
         {
@@ -210,7 +259,7 @@ def export_scores_to_parquet(
             "expected_log_sum_rarity": pa.array(expected_log_sum_rarity, type=pa.float64()),
             "residual": pa.array(residuals, type=pa.float64()),
             "residual_std": pa.array(residual_std, type=pa.float64()),
-            "rarity_zscore": pa.array(zscores, type=pa.float64()),
+            "rarity_zscore": pa.array(weighted_zscores, type=pa.float64()),
         }
     )
 
@@ -555,7 +604,7 @@ def main() -> None:
 
     # Fetch aggregated cell data from DuckDB
     print("Fetching cell aggregates from DuckDB...")
-    h3_indices, count_observations, count_species, sum_rarity = fetch_cell_data(
+    h3_indices, count_observations, count_species, sum_rarity, confidence_scores = fetch_cell_data(
         observations_path=observations_path,
         species_occupancy_path=species_occupancy_path,
     )
@@ -575,6 +624,7 @@ def main() -> None:
         count_species=count_species,
         sum_rarity=sum_rarity,
         gam_result=gam_result,
+        confidence_scores=confidence_scores,
     )
     print(f"  Written to: {output_path}")
 

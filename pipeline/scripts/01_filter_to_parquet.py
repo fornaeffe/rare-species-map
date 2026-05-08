@@ -150,6 +150,7 @@ def build_query(
             taxonRank,
             occurrenceStatus,
             basisOfRecord,
+            recordedBy,
 
             eventDate,
             year,

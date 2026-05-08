@@ -347,9 +347,9 @@
     popup
       ?.setLngLat(event.lngLat)
       .setHTML(
-        `<strong>${formatScore(properties.rarity_zscore)}</strong><span>${formatCount(
-          properties.count_observations,
-        )} observations</span>`,
+        `<strong>${formatScore(properties.rarity_zscore)}</strong> <span>(${formatCount(
+          properties.count_observations
+        )} observations)</span>`,
       )
       .addTo(map);
   }

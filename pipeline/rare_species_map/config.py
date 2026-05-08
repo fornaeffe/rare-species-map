@@ -34,7 +34,7 @@ GAM_VARIANCE_METHOD = "rolling_window"
 
 # Size of rolling window for rolling_window variance method
 # Applies to residuals sorted by x
-GAM_ROLLING_WINDOW_SIZE = 100
+GAM_ROLLING_WINDOW_SIZE = 50
 
 # Minimum observations per cell to include in GAM fit
 GAM_MIN_OBSERVATIONS_PER_CELL = 1

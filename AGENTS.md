@@ -24,14 +24,14 @@ The frontend must NEVER perform expensive geospatial computations live.
 For each species:
 
 occupancy(species) =
-number of distinct H3 resolution 7 cells occupied by the species.
+number of distinct H3 cells occupied by the species (resolution defined in config.py).
 
 Species rarity:
 
 rarity(species) =
-1 / sqrt(occupancy)
+1 / (occupancy)^0.25
 
-For each H3 visualization cell (resolution 8):
+For each H3 visualization cell (resolution defined in config.py):
 
 - count_observations
 - sum_rarity
@@ -42,16 +42,32 @@ The final rarity score is NOT:
 
 sum_rarity / count
 
-Instead, the project models the empirical relationship:
+Instead, the project models the empirical relationship using a **GAM smooth spline**:
 
-log(sum_rarity) ~ log(count_observations)
+y ~ s(x)
 
-using regression.
+where:
+- x = log(count_observations + 1)
+- y = log(sum_rarity + epsilon)
+- s(x) = smooth spline fit (non-linear)
 
-The final score is based on the residual from the expected value:
-cells with more rarity than expected for their observation count receive higher scores.
+The model estimates:
+- expected_log_sum_rarity (fitted values from the spline)
+- residual = y - expected_y
+- residual_std = local standard deviation of residuals (models heteroscedasticity)
 
-This is extremely important and should not be changed unless explicitly requested.
+The final score is **standardized** by local variability:
+
+**rarity_zscore = residual / residual_std**
+
+This gives:
+- z-scores centered at 0 (unbiased across observation effort)
+- adjusted for the increasing variance at low observation counts
+- cells with more rarity than expected receive higher scores
+- robust across the full range of observation effort
+
+This non-linear model with local variance adjustment is crucial for detecting ecological hotspots fairly.
+
 
 ---
 
@@ -64,6 +80,7 @@ This is extremely important and should not be changed unless explicitly requeste
 - H3
 - Parquet
 - freestiler for PMTiles generation
+- scipy (spline fitting)
 - UV for dependency management
 
 Important:
@@ -73,6 +90,11 @@ Important:
 - the input dataset can exceed 90 GB
 
 The pipeline must be memory-efficient.
+
+Modules in rare_species_map/:
+- `config.py`: centralized configuration
+- `duckdb_utils.py`: DuckDB connection and utilities
+- `gam_scorer.py`: GAM spline fitting and residual standardization
 
 ---
 
@@ -162,7 +184,7 @@ occupancy =
 number of distinct H3 resolution 7 cells occupied by each species.
 
 rarity =
-1 / sqrt(occupancy)
+1 / (occupancy)^0.25
 
 Output:
 data/processed/species_occupancy.parquet
@@ -174,36 +196,78 @@ data/processed/species_occupancy.parquet
 Script:
 scripts/03_compute_cell_scores.py
 
-Compute rarity score per H3 resolution 8 cell.
+Compute rarity score per H3 visualization cell using GAM smooth spline.
 
-For each H3 resolution 8 cell:
+### Data aggregation (DuckDB)
+
+For each H3 visualization cell:
 
 - count_observations counts all observations
 - count_species counts distinct species in the cell
 - sum_rarity sums species rarity once per distinct species present in the cell
 
-Then fit:
+### GAM Model fitting (Python)
 
-log(sum_rarity) ~ log(count_observations)
+1. Build log-transformed data:
+   - x = log(count_observations + 1)
+   - y = log(sum_rarity + epsilon), where epsilon = 1e-8
 
-The output score is the residual:
+2. Fit smooth spline: y ~ s(x)
+   - Uses scipy.interpolate.UnivariateSpline
+   - Computes fitted_values for each cell
 
-rarity_score =
-log_sum_rarity - expected_log_sum_rarity
+3. Compute residuals:
+   - residual = y - fitted_values
 
-Output:
+4. Estimate local residual standard deviation:
+   - Models heteroscedasticity (variance increases at low observation counts)
+   - Available methods: 'rolling_window', 'binning', 'spline'
+   - Default: 'rolling_window' with window size 50
+
+5. Standardize residuals:
+   - rarity_zscore = residual / residual_std
+
+### Output columns
+
 data/processed/cell_scores.parquet
 
-Step 3 also produces diagnostic plots by default:
+- h3_resHigh (uint64): H3 cell index
+- count_observations (uint64): number of observations
+- count_species (uint64): number of distinct species
+- sum_rarity (float64): sum of species rarities
+- log_count_observations (float64): log(count_observations + 1)
+- log_sum_rarity (float64): log(sum_rarity + epsilon)
+- expected_log_sum_rarity (float64): fitted value from GAM
+- residual (float64): y - fitted
+- residual_std (float64): local standard deviation
+- rarity_zscore (float64): standardized score (final output for frontend)
 
-- `sum_rarity_vs_count_observations.png`
-- `log_sum_rarity_vs_log_count_observations.png`
-- `residuals_qqplot.png`
+### Diagnostic plots
+
+Step 3 produces diagnostic plots by default:
+
+- `observed_vs_count.png`: Raw scatter of sum_rarity vs count_observations
+- `gam_fit_logspace.png`: Log-space data with fitted GAM spline
+- `residuals_vs_fitted.png`: Residuals vs fitted values (should show no systematic pattern)
+- `residual_variance_vs_x.png`: Local residual std vs x (shows heteroscedasticity model)
+- `zscores_histogram.png`: Distribution of final z-scores (should be ~N(0,1))
+- `zscores_qqplot.png`: Q-Q plot of z-scores vs normal distribution
+- `diagnostics_summary.txt`: Numerical summary
 
 Default diagnostics directory:
 data/processed/diagnostics/cell_scores
 
 Use `--no-diagnostics` to skip plot generation.
+
+### Configuration
+
+Adjustable GAM parameters in rare_species_map/config.py:
+
+- `GAM_LOG_EPSILON`: epsilon for log transform (default: 1e-8)
+- `GAM_N_SPLINES`: approximate number of spline basis functions (default: 20)
+- `GAM_VARIANCE_METHOD`: method for local std estimation (default: 'rolling_window')
+- `GAM_ROLLING_WINDOW_SIZE`: window size for rolling variance (default: 50)
+- `GAM_MIN_OBSERVATIONS_PER_CELL`: minimum obs to include in fit (default: 1)
 
 ---
 
@@ -214,29 +278,20 @@ scripts/04_generate_pmtiles.py
 
 Generate PMTiles vector tiles for the frontend.
 
-The current backend uses `freestiler`, not tippecanoe.
+Exports H3 cells as GeoJSON features with properties:
 
-The script exports a temporary/debug GeoJSONSeq representation of H3 polygons,
-then uses freestiler to generate PMTiles. GeoJSONSeq is an intermediate/debug
-artifact, not the frontend format.
+- h3: H3 cell index (string)
+- count_observations: number of observations
+- count_species: number of distinct species
+- sum_rarity: sum of rarity values
+- rarity_zscore: **final scoring metric** (z-score standardized by local effort)
 
-The frontend should consume PMTiles vector tiles rather than raw GeoJSON.
+The script uses `freestiler` to generate PMTiles with configurable zoom levels (default 0-12).
+
+GeoJSONSeq is an intermediate debug artifact; the frontend consumes PMTiles.
 
 Output:
 data/tiles/rare_species_cells.pmtiles
-
----
-
-# Important implementation constraints
-
-## H3
-
-- occupancy resolution = 5
-- visualization resolution = 6
-
-H3 indexes should be stored as UINT64 whenever possible.
-
-Avoid string H3 indexes in intermediate datasets.
 
 ---
 

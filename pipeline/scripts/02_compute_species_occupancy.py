@@ -55,7 +55,7 @@ def build_query(input_path: Path, output_path: Path) -> str:
             species,
             n_observations,
             occupancy,
-            1.0 / sqrt(occupancy::DOUBLE) AS rarity
+            1.0 / (occupancy::DOUBLE)^0.25 AS rarity
         FROM species_occupancy
     )
     TO '{output_path.as_posix()}'

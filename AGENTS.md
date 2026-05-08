@@ -231,8 +231,8 @@ data/tiles/rare_species_cells.pmtiles
 
 ## H3
 
-- occupancy resolution = 6
-- visualization resolution = 7
+- occupancy resolution = 5
+- visualization resolution = 6
 
 H3 indexes should be stored as UINT64 whenever possible.
 

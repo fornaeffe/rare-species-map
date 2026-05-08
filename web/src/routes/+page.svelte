@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount } from "svelte";
   import maplibregl, {
     type ExpressionSpecification,
     type FillLayerSpecification,
@@ -8,27 +8,45 @@
     type MapGeoJSONFeature,
     type MapMouseEvent,
     type MapOptions,
-    type Popup
-  } from 'maplibre-gl';
-  import { Protocol } from 'pmtiles';
-  import { Activity, Eye, Layers, LocateFixed, Minus, Plus, RefreshCw } from 'lucide-svelte';
+    type Popup,
+  } from "maplibre-gl";
+  import { Protocol } from "pmtiles";
+  import {
+    Activity,
+    Bird,
+    Eye,
+    Layers,
+    Leaf,
+    LocateFixed,
+    Minus,
+    Plus,
+    RefreshCw,
+    Star,
+    User,
+  } from "lucide-svelte";
 
-  const TILE_LAYER = 'rare_species_cells';
-  const SOURCE_ID = 'rare-species-source';
-  const FILL_LAYER_ID = 'rare-species-fill';
-  const LINE_LAYER_ID = 'rare-species-line';
-  const HOVER_LINE_LAYER_ID = 'rare-species-hover-line';
+  const TILE_LAYER = "rare_species_cells";
+  const SOURCE_ID = "rare-species-source";
+  const FILL_LAYER_ID = "rare-species-fill";
+  const LINE_LAYER_ID = "rare-species-line";
+  const HOVER_LINE_LAYER_ID = "rare-species-hover-line";
   const pmtilesUrl =
-    import.meta.env.PUBLIC_PMTILES_URL?.trim() || '/tiles/rare_species_cells.pmtiles';
+    import.meta.env.PUBLIC_PMTILES_URL?.trim() ||
+    "/tiles/rare_species_cells.pmtiles";
 
-  type Metric = 'rarity_zscore' | 'count_observations' | 'count_species';
+  type Metric =
+    | "rarity_zscore"
+    | "count_observations"
+    | "count_species"
+    | "count_observers";
 
   type CellProperties = {
     h3?: string;
     count_observations?: number;
     count_species?: number;
-    sum_rarity?: number;
+    count_observers?: number;
     rarity_zscore?: number;
+    confidence_scores?: number[];
   };
 
   type LayerMouseEvent = MapMouseEvent & {
@@ -36,15 +54,17 @@
   };
 
   const metricLabels: Record<Metric, string> = {
-    rarity_zscore: 'Rarity Z-score',
-    count_observations: 'Observations',
-    count_species: 'Species'
+    rarity_zscore: "Rarity Z-score",
+    count_observations: "Observations",
+    count_species: "Species",
+    count_observers: "Observers",
   };
 
   const metricIcons = {
-    rarity_zscore: Activity,
+    rarity_zscore: Star,
     count_observations: Eye,
-    count_species: Layers
+    count_species: Leaf,
+    count_observers: User,
   };
 
   const initialCenter: LngLatLike = [12.45, 42.7];
@@ -54,12 +74,12 @@
   let popup = $state<Popup | undefined>();
   let protocol = $state<Protocol | undefined>();
   let isMapReady = $state(false);
-  let tileError = $state('');
-  let metric = $state<Metric>('rarity_zscore');
-  let opacity = $state(72);
+  let tileError = $state("");
+  let metric = $state<Metric>("rarity_zscore");
+  let opacity = $state(100);
   let scoreFloor = $state(-1.5);
   let selectedCell = $state<CellProperties | undefined>();
-  let hoveredH3 = $state('');
+  let hoveredH3 = $state("");
 
   $effect(() => {
     metric;
@@ -73,7 +93,7 @@
 
   onMount(() => {
     protocol = new Protocol();
-    maplibregl.addProtocol('pmtiles', protocol.tile);
+    maplibregl.addProtocol("pmtiles", protocol.tile);
 
     const options: MapOptions = {
       container: mapContainer,
@@ -84,28 +104,30 @@
       attributionControl: false,
       style: {
         version: 8,
-        glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
+        glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
         sources: {
           basemap: {
-            type: 'raster',
-            tiles: ['https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png'],
+            type: "raster",
+            tiles: [
+              "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+            ],
             tileSize: 256,
             attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          }
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          },
         },
         layers: [
           {
-            id: 'basemap',
-            type: 'raster',
-            source: 'basemap',
+            id: "basemap",
+            type: "raster",
+            source: "basemap",
             paint: {
-              'raster-saturation': -0.2,
-              'raster-contrast': 0.04
-            }
-          }
-        ]
-      }
+              "raster-saturation": -0.2,
+              "raster-contrast": 0.04,
+            },
+          },
+        ],
+      },
     };
 
     map = new maplibregl.Map(options);
@@ -113,29 +135,38 @@
       closeButton: false,
       closeOnClick: false,
       offset: 14,
-      className: 'cell-popup'
+      className: "cell-popup",
     });
 
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right');
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-left');
+    map.addControl(
+      new maplibregl.NavigationControl({ showCompass: false }),
+      "bottom-right",
+    );
+    map.addControl(
+      new maplibregl.AttributionControl({ compact: true }),
+      "bottom-left",
+    );
 
-    map.on('load', () => {
+    map.on("load", () => {
       addCellLayers();
       isMapReady = true;
     });
 
-    map.on('mousemove', FILL_LAYER_ID, handleCellHover);
-    map.on('mouseleave', FILL_LAYER_ID, clearHover);
-    map.on('click', FILL_LAYER_ID, handleCellClick);
-    map.on('error', (event) => {
-      const message = event.error?.message ?? '';
-      if (message.includes('rare_species_cells') || message.includes('pmtiles')) {
+    map.on("mousemove", FILL_LAYER_ID, handleCellHover);
+    map.on("mouseleave", FILL_LAYER_ID, clearHover);
+    map.on("click", FILL_LAYER_ID, handleCellClick);
+    map.on("error", (event) => {
+      const message = event.error?.message ?? "";
+      if (
+        message.includes("rare_species_cells") ||
+        message.includes("pmtiles")
+      ) {
         tileError = `PMTiles non trovati o non leggibili: ${pmtilesUrl}`;
       }
     });
 
     return () => {
-      maplibregl.removeProtocol('pmtiles');
+      maplibregl.removeProtocol("pmtiles");
       popup?.remove();
       map?.remove();
       protocol = undefined;
@@ -151,159 +182,183 @@
     if (!map) return;
 
     map.addSource(SOURCE_ID, {
-      type: 'vector',
+      type: "vector",
       url: pmtilesSourceUrl(),
-      promoteId: 'h3'
+      promoteId: "h3",
     });
 
     map.addLayer({
       id: FILL_LAYER_ID,
-      type: 'fill',
+      type: "fill",
       source: SOURCE_ID,
-      'source-layer': TILE_LAYER,
-      filter: scoreFilter(),
+      "source-layer": TILE_LAYER,
       paint: {
-        'fill-color': metricColorExpression(),
-        'fill-opacity': fillOpacityExpression()
-      }
+        "fill-color": metricColorExpression(),
+        "fill-opacity": fillOpacityExpression(),
+      },
     } satisfies FillLayerSpecification);
 
     map.addLayer({
       id: LINE_LAYER_ID,
-      type: 'line',
+      type: "line",
       source: SOURCE_ID,
-      'source-layer': TILE_LAYER,
-      filter: scoreFilter(),
+      "source-layer": TILE_LAYER,
       paint: {
-        'line-color': 'rgba(25, 45, 37, 0.5)',
-        'line-opacity': ['interpolate', ['linear'], ['zoom'], 4, 0, 8, 0.32, 12, 0.48],
-        'line-width': ['interpolate', ['linear'], ['zoom'], 4, 0.1, 9, 0.45, 12, 0.9]
-      }
+        "line-color": "rgba(25, 45, 37, 0.5)",
+        "line-opacity": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          4,
+          0,
+          8,
+          0.32,
+          12,
+          0.48,
+        ],
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          4,
+          0.1,
+          9,
+          0.45,
+          12,
+          0.9,
+        ],
+      },
     });
 
     map.addLayer({
       id: HOVER_LINE_LAYER_ID,
-      type: 'line',
+      type: "line",
       source: SOURCE_ID,
-      'source-layer': TILE_LAYER,
-      filter: ['==', ['get', 'h3'], ''],
+      "source-layer": TILE_LAYER,
+      filter: ["==", ["get", "h3"], ""],
       paint: {
-        'line-color': '#101613',
-        'line-opacity': 0.95,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 4, 1, 10, 2.2]
-      }
+        "line-color": "#101613",
+        "line-opacity": 0.95,
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 1, 10, 2.2],
+      },
     });
   }
 
   function updateCellLayers() {
     if (!map?.getLayer(FILL_LAYER_ID)) return;
 
-    map.setPaintProperty(FILL_LAYER_ID, 'fill-color', metricColorExpression());
-    map.setPaintProperty(FILL_LAYER_ID, 'fill-opacity', fillOpacityExpression());
-    map.setFilter(FILL_LAYER_ID, scoreFilter());
-    map.setFilter(LINE_LAYER_ID, scoreFilter());
-  }
-
-  function scoreFilter(): ExpressionSpecification {
-    return ['>=', ['coalesce', ['get', 'rarity_zscore'], -999], scoreFloor];
+    map.setPaintProperty(FILL_LAYER_ID, "fill-color", metricColorExpression());
+    map.setPaintProperty(
+      FILL_LAYER_ID,
+      "fill-opacity",
+      fillOpacityExpression(),
+    );
   }
 
   function fillOpacityExpression(): ExpressionSpecification {
     return [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      3,
-      Math.max(0.08, opacity / 180),
-      8,
-      opacity / 100,
-      12,
-      Math.min(0.94, opacity / 86)
+      "interpolate",
+      ["linear"],
+      ["coalesce", ["get", "confidence_scores"], 0],
+
+      0,
+      0,
+      10,
+      1 * (opacity / 100),
     ];
   }
 
   function metricColorExpression(): ExpressionSpecification {
-    if (metric === 'count_observations') {
+    if (metric === "count_observations") {
       return [
-        'interpolate',
-        ['linear'],
-        ['coalesce', ['get', 'count_observations'], 0],
+        "interpolate",
+        ["linear"],
+        ["coalesce", ["get", "count_observations"], 0],
         1,
-        '#e8f3ea',
-        8,
-        '#b8d9c3',
-        30,
-        '#6fb0a4',
-        120,
-        '#397996',
+        "#e8f3ea",
+        5,
+        "#b8d9c3",
+        25,
+        "#6fb0a4",
+        100,
+        "#397996",
         500,
-        '#24476f',
-        2000,
-        '#171d3f'
+        "#24476f",
+        1500,
+        "#171d3f",
       ];
     }
 
-    if (metric === 'count_species') {
+    if (metric === "count_species") {
       return [
-        'interpolate',
-        ['linear'],
-        ['coalesce', ['get', 'count_species'], 0],
+        "interpolate",
+        ["linear"],
+        ["coalesce", ["get", "count_species"], 0],
         1,
-        '#fff1cf',
-        10,
-        '#f7c66a',
+        "#fff1cf",
+        5,
+        "#f7c66a",
+        25,
+        "#de7d46",
         100,
-        '#de7d46',
+        "#aa3c52",
         500,
-        '#aa3c52',
-        2000,
-        '#572461'
+        "#572461",
+      ];
+    }
+
+    if (metric === "count_observers") {
+      return [
+        "interpolate",
+        ["linear"],
+        ["coalesce", ["get", "count_observers"], 0],
+        1,
+        "#fff1cf",
+        4,
+        "#f7c66a",
+        20,
+        "#de7d46",
+        50,
+        "#aa3c52",
+        100,
+        "#572461",
       ];
     }
 
     return [
-      'interpolate',
-      ['linear'],
-      ['coalesce', ['get', 'rarity_zscore'], 0],
-      -2,
-      '#31517a',
-      -0.75,
-      '#72958a',
-      0,
-      '#f2e9c9',
-      0.75,
-      '#e6914f',
-      1.8,
-      '#b72f4a',
-      3,
-      '#5f1635'
+      "interpolate",
+      ["linear"],
+      ["coalesce", ["get", "rarity_zscore"], 0],
+      -0.0484, '#2166ac',
+      0,    '#f7f7f7',
+      0.0757, '#b2182b'
     ];
   }
 
   function handleCellHover(event: LayerMouseEvent) {
     if (!map || !event.features?.length) return;
 
-    map.getCanvas().style.cursor = 'pointer';
+    map.getCanvas().style.cursor = "pointer";
     const feature = event.features[0];
     const properties = feature.properties as CellProperties;
-    hoveredH3 = properties.h3 ?? '';
+    hoveredH3 = properties.h3 ?? "";
 
-    map.setFilter(HOVER_LINE_LAYER_ID, ['==', ['get', 'h3'], hoveredH3]);
+    map.setFilter(HOVER_LINE_LAYER_ID, ["==", ["get", "h3"], hoveredH3]);
     popup
       ?.setLngLat(event.lngLat)
       .setHTML(
         `<strong>${formatScore(properties.rarity_zscore)}</strong><span>${formatCount(
-          properties.count_observations
-        )} observations</span>`
+          properties.count_observations,
+        )} observations</span>`,
       )
       .addTo(map);
   }
 
   function clearHover() {
     if (!map) return;
-    map.getCanvas().style.cursor = '';
-    hoveredH3 = '';
-    map.setFilter(HOVER_LINE_LAYER_ID, ['==', ['get', 'h3'], '']);
+    map.getCanvas().style.cursor = "";
+    hoveredH3 = "";
+    map.setFilter(HOVER_LINE_LAYER_ID, ["==", ["get", "h3"], ""]);
     popup?.remove();
   }
 
@@ -321,22 +376,24 @@
   }
 
   function formatCount(value: number | undefined) {
-    return value == null ? '0' : new Intl.NumberFormat('en-US').format(value);
+    return value == null ? "0" : new Intl.NumberFormat("en-US").format(value);
   }
 
   function formatScore(value: number | undefined) {
     return value == null
-      ? 'n/a'
-      : new Intl.NumberFormat('en-US', {
-          signDisplay: 'exceptZero',
-          maximumFractionDigits: 3
+      ? "n/a"
+      : new Intl.NumberFormat("en-US", {
+          signDisplay: "exceptZero",
+          maximumFractionDigits: 3,
         }).format(value);
   }
 
   function formatDecimal(value: number | undefined) {
     return value == null
-      ? 'n/a'
-      : new Intl.NumberFormat('en-US', { maximumFractionDigits: 5 }).format(value);
+      ? "n/a"
+      : new Intl.NumberFormat("en-US", { maximumFractionDigits: 5 }).format(
+          value,
+        );
   }
 </script>
 
@@ -354,7 +411,7 @@
     </div>
     <div class="status-pill" class:error={tileError}>
       <span class="status-dot"></span>
-      {tileError ? 'Tile source issue' : 'PMTiles vector source'}
+      {tileError ? "Tile source issue" : "PMTiles vector source"}
     </div>
   </section>
 
@@ -387,23 +444,10 @@
         <strong>{opacity}%</strong>
         <input
           type="range"
-          min="20"
-          max="92"
+          min="0"
+          max="100"
           value={opacity}
           oninput={(event) => (opacity = event.currentTarget.valueAsNumber)}
-        />
-      </label>
-
-      <label class="slider-row">
-        <span>Score floor</span>
-        <strong>{scoreFloor.toFixed(1)}</strong>
-        <input
-          type="range"
-          min="-3"
-          max="2"
-          step="0.1"
-          value={scoreFloor}
-          oninput={(event) => (scoreFloor = event.currentTarget.valueAsNumber)}
         />
       </label>
     </div>
@@ -446,8 +490,8 @@
           <dd>{formatCount(selectedCell.count_species)}</dd>
         </div>
         <div>
-          <dt>Sum rarity</dt>
-          <dd>{formatDecimal(selectedCell.sum_rarity)}</dd>
+          <dt>Observers</dt>
+          <dd>{formatCount(selectedCell.count_observers)}</dd>
         </div>
       </dl>
     {:else}
@@ -456,13 +500,28 @@
   </aside>
 
   <nav class="map-actions" aria-label="Map navigation">
-    <button type="button" onclick={() => zoomBy(1)} aria-label="Zoom in" title="Zoom in">
+    <button
+      type="button"
+      onclick={() => zoomBy(1)}
+      aria-label="Zoom in"
+      title="Zoom in"
+    >
       <Plus size={18} />
     </button>
-    <button type="button" onclick={() => zoomBy(-1)} aria-label="Zoom out" title="Zoom out">
+    <button
+      type="button"
+      onclick={() => zoomBy(-1)}
+      aria-label="Zoom out"
+      title="Zoom out"
+    >
       <Minus size={18} />
     </button>
-    <button type="button" onclick={resetView} aria-label="Reset view" title="Reset view">
+    <button
+      type="button"
+      onclick={resetView}
+      aria-label="Reset view"
+      title="Reset view"
+    >
       <LocateFixed size={18} />
     </button>
     <button
@@ -476,6 +535,7 @@
   </nav>
 
   <footer class="science-note">
-    Areas where rare species are observed more often than expected given observation effort.
+    Areas where rare species are observed more often than expected given
+    observation effort.
   </footer>
 </main>

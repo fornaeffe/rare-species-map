@@ -147,10 +147,11 @@ def build_feature(row: dict[str, Any]) -> dict[str, Any]:
         },
         "properties": {
             "h3": h3.int_to_str(h3_cell),
-            "count_observations": int(row["count_observations"]),
-            "count_species": int(row["count_species"]),
-            "sum_rarity": float(row["sum_rarity"]),
             "rarity_zscore": float(row["rarity_zscore"]),
+            "count_species": int(row["count_species"]),
+            "count_observations": int(row["count_observations"]),
+            "count_observers": int(row["count_observers"]),
+            "confidence_scores": float(row["confidence_scores"]),
         },
     }
 
@@ -161,17 +162,19 @@ def export_geojsonseq(input_path: Path, output_path: Path, batch_size: int) -> i
     query = f"""
     SELECT
         h3_resHigh,
-        count_observations,
+        rarity_zscore,
         count_species,
-        sum_rarity,
-        rarity_zscore
+        count_observations,
+        count_observers,
+        confidence_scores,
     FROM parquet_scan('{input_path.as_posix()}')
     WHERE
         h3_resHigh IS NOT NULL
-        AND count_observations IS NOT NULL
-        AND count_species IS NOT NULL
-        AND sum_rarity IS NOT NULL
         AND rarity_zscore IS NOT NULL
+        AND count_species IS NOT NULL
+        AND count_observations IS NOT NULL
+        AND count_observers IS NOT NULL
+        AND confidence_scores IS NOT NULL
     """
 
     reader = con.execute(query).to_arrow_reader(batch_size=batch_size)

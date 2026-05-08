@@ -245,7 +245,7 @@ button {
 }
 
 .legend-ramp.metric-rarity_zscore {
-  background: linear-gradient(90deg, #31517a, #72958a, #f2e9c9, #e6914f, #b72f4a, #5f1635);
+  background: linear-gradient(90deg, #2166ac, #f7f7f7, #b2182b);
 }
 
 .legend-ramp.metric-count_observations {
@@ -253,6 +253,10 @@ button {
 }
 
 .legend-ramp.metric-count_species {
+  background: linear-gradient(90deg, #fff1cf, #f7c66a, #de7d46, #aa3c52, #572461);
+}
+
+.legend-ramp.metric-count_observers {
   background: linear-gradient(90deg, #fff1cf, #f7c66a, #de7d46, #aa3c52, #572461);
 }
 

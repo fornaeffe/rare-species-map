@@ -21,14 +21,14 @@
   const pmtilesUrl =
     import.meta.env.PUBLIC_PMTILES_URL?.trim() || '/tiles/rare_species_cells.pmtiles';
 
-  type Metric = 'rarity_score' | 'count_observations' | 'count_species';
+  type Metric = 'rarity_zscore' | 'count_observations' | 'count_species';
 
   type CellProperties = {
     h3?: string;
     count_observations?: number;
     count_species?: number;
     sum_rarity?: number;
-    rarity_score?: number;
+    rarity_zscore?: number;
   };
 
   type LayerMouseEvent = MapMouseEvent & {
@@ -36,13 +36,13 @@
   };
 
   const metricLabels: Record<Metric, string> = {
-    rarity_score: 'Rarity residual',
+    rarity_zscore: 'Rarity Z-score',
     count_observations: 'Observations',
     count_species: 'Species'
   };
 
   const metricIcons = {
-    rarity_score: Activity,
+    rarity_zscore: Activity,
     count_observations: Eye,
     count_species: Layers
   };
@@ -55,7 +55,7 @@
   let protocol = $state<Protocol | undefined>();
   let isMapReady = $state(false);
   let tileError = $state('');
-  let metric = $state<Metric>('rarity_score');
+  let metric = $state<Metric>('rarity_zscore');
   let opacity = $state(72);
   let scoreFloor = $state(-1.5);
   let selectedCell = $state<CellProperties | undefined>();
@@ -205,7 +205,7 @@
   }
 
   function scoreFilter(): ExpressionSpecification {
-    return ['>=', ['coalesce', ['get', 'rarity_score'], -999], scoreFloor];
+    return ['>=', ['coalesce', ['get', 'rarity_zscore'], -999], scoreFloor];
   }
 
   function fillOpacityExpression(): ExpressionSpecification {
@@ -264,7 +264,7 @@
     return [
       'interpolate',
       ['linear'],
-      ['coalesce', ['get', 'rarity_score'], 0],
+      ['coalesce', ['get', 'rarity_zscore'], 0],
       -2,
       '#31517a',
       -0.75,
@@ -292,7 +292,7 @@
     popup
       ?.setLngLat(event.lngLat)
       .setHTML(
-        `<strong>${formatScore(properties.rarity_score)}</strong><span>${formatCount(
+        `<strong>${formatScore(properties.rarity_zscore)}</strong><span>${formatCount(
           properties.count_observations
         )} observations</span>`
       )
@@ -434,8 +434,8 @@
           <dd>{selectedCell.h3}</dd>
         </div>
         <div>
-          <dt>Rarity residual</dt>
-          <dd>{formatScore(selectedCell.rarity_score)}</dd>
+          <dt>Rarity Z-score</dt>
+          <dd>{formatScore(selectedCell.rarity_zscore)}</dd>
         </div>
         <div>
           <dt>Observations</dt>

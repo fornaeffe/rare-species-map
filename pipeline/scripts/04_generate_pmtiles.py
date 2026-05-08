@@ -150,7 +150,7 @@ def build_feature(row: dict[str, Any]) -> dict[str, Any]:
             "count_observations": int(row["count_observations"]),
             "count_species": int(row["count_species"]),
             "sum_rarity": float(row["sum_rarity"]),
-            "rarity_score": float(row["rarity_score"]),
+            "rarity_zscore": float(row["rarity_zscore"]),
         },
     }
 
@@ -164,14 +164,14 @@ def export_geojsonseq(input_path: Path, output_path: Path, batch_size: int) -> i
         count_observations,
         count_species,
         sum_rarity,
-        rarity_score
+        rarity_zscore
     FROM parquet_scan('{input_path.as_posix()}')
     WHERE
         h3_resHigh IS NOT NULL
         AND count_observations IS NOT NULL
         AND count_species IS NOT NULL
         AND sum_rarity IS NOT NULL
-        AND rarity_score IS NOT NULL
+        AND rarity_zscore IS NOT NULL
     """
 
     reader = con.execute(query).to_arrow_reader(batch_size=batch_size)

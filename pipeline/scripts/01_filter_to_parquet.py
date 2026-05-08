@@ -160,13 +160,13 @@ def build_query(
                 decimalLatitude,
                 decimalLongitude,
                 {H3_OCCUPANCY_RESOLUTION}
-            ) AS h3_res7,
+            ) AS h3_resLow,
 
             h3_latlng_to_cell(
                 decimalLatitude,
                 decimalLongitude,
                 {H3_VISUALIZATION_RESOLUTION}
-            ) AS h3_res8
+            ) AS h3_resHigh
 
         FROM read_csv(
             '{input_path.as_posix()}',
@@ -217,7 +217,7 @@ def print_stats(output_path: Path) -> None:
     SELECT
         COUNT(*) AS n_observations,
         COUNT(DISTINCT speciesKey) AS n_species,
-        COUNT(DISTINCT h3_res8) AS n_cells
+        COUNT(DISTINCT h3_resHigh) AS n_cells
     FROM parquet_scan('{output_path.as_posix()}')
     """
 

@@ -73,43 +73,43 @@ def build_query(
     COPY (
         WITH observations AS (
             SELECT
-                h3_res8,
+                h3_resHigh,
                 speciesKey
             FROM parquet_scan('{observations_path.as_posix()}')
             WHERE
-                h3_res8 IS NOT NULL
+                h3_resHigh IS NOT NULL
                 AND speciesKey IS NOT NULL
         ),
 
         observations_by_cell AS (
             SELECT
-                h3_res8,
+                h3_resHigh,
                 COUNT(*) AS count_observations
             FROM observations
-            GROUP BY h3_res8
+            GROUP BY h3_resHigh
         ),
 
         species_by_cell AS (
             SELECT DISTINCT
-                h3_res8,
+                h3_resHigh,
                 speciesKey
             FROM observations
         ),
 
         rarity_by_cell AS (
             SELECT
-                species_by_cell.h3_res8,
+                species_by_cell.h3_resHigh,
                 COUNT(*) AS count_species,
                 SUM(species_occupancy.rarity) AS sum_rarity
             FROM species_by_cell
             INNER JOIN parquet_scan('{species_occupancy_path.as_posix()}') AS species_occupancy
                 ON species_by_cell.speciesKey = species_occupancy.speciesKey
-            GROUP BY species_by_cell.h3_res8
+            GROUP BY species_by_cell.h3_resHigh
         ),
 
         cell_metrics AS (
             SELECT
-                observations_by_cell.h3_res8,
+                observations_by_cell.h3_resHigh,
                 observations_by_cell.count_observations,
                 rarity_by_cell.count_species,
                 rarity_by_cell.sum_rarity,
@@ -117,7 +117,7 @@ def build_query(
                 ln(rarity_by_cell.sum_rarity) AS log_sum_rarity
             FROM observations_by_cell
             INNER JOIN rarity_by_cell
-                ON observations_by_cell.h3_res8 = rarity_by_cell.h3_res8
+                ON observations_by_cell.h3_resHigh = rarity_by_cell.h3_resHigh
             WHERE
                 observations_by_cell.count_observations > 0
                 AND rarity_by_cell.sum_rarity > 0
@@ -133,7 +133,7 @@ def build_query(
         )
 
         SELECT
-            cell_metrics.h3_res8,
+            cell_metrics.h3_resHigh,
             cell_metrics.count_observations,
             cell_metrics.count_species,
             cell_metrics.sum_rarity,
@@ -246,7 +246,7 @@ def fetch_diagnostics_data(
     if n_cells <= sample_size:
         sample_where = ""
     else:
-        sample_where = f"WHERE hash(h3_res8) % {n_cells} < {sample_size}"
+        sample_where = f"WHERE hash(h3_resHigh) % {n_cells} < {sample_size}"
 
     sample_query = f"""
     SELECT

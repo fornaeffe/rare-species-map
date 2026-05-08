@@ -137,7 +137,7 @@ def h3_boundary_geojson(h3_cell: int) -> list[list[list[float]]]:
 
 
 def build_feature(row: dict[str, Any]) -> dict[str, Any]:
-    h3_cell = int(row["h3_res8"])
+    h3_cell = int(row["h3_resHigh"])
 
     return {
         "type": "Feature",
@@ -160,14 +160,14 @@ def export_geojsonseq(input_path: Path, output_path: Path, batch_size: int) -> i
 
     query = f"""
     SELECT
-        h3_res8,
+        h3_resHigh,
         count_observations,
         count_species,
         sum_rarity,
         rarity_score
     FROM parquet_scan('{input_path.as_posix()}')
     WHERE
-        h3_res8 IS NOT NULL
+        h3_resHigh IS NOT NULL
         AND count_observations IS NOT NULL
         AND count_species IS NOT NULL
         AND sum_rarity IS NOT NULL

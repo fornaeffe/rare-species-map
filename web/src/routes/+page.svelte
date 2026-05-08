@@ -186,6 +186,8 @@
       type: "vector",
       url: pmtilesSourceUrl(),
       promoteId: "h3",
+      attribution:
+              'GBIF.org (07 May 2026) GBIF Occurrence Download <a href="https://doi.org/10.15468/dl.v2j3ye">https://doi.org/10.15468/dl.v2j3ye</a>',
     });
 
     map.addLayer({

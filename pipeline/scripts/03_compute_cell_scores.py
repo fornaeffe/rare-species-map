@@ -254,6 +254,7 @@ def fetch_diagnostics_data(
         sum_rarity::DOUBLE AS sum_rarity,
         log_count_observations::DOUBLE AS log_count_observations,
         log_sum_rarity::DOUBLE AS log_sum_rarity,
+        expected_log_sum_rarity::DOUBLE AS expected_log_sum_rarity,
         rarity_score::DOUBLE AS rarity_score
     FROM parquet_scan('{output_path.as_posix()}')
     {sample_where}
@@ -301,6 +302,7 @@ def generate_diagnostic_plots(
     sum_rarity = np.asarray(data["sum_rarity"], dtype=float)
     log_count_observations = np.asarray(data["log_count_observations"], dtype=float)
     log_sum_rarity = np.asarray(data["log_sum_rarity"], dtype=float)
+    expected_log_sum_rarity = np.asarray(data["expected_log_sum_rarity"], dtype=float)
     residuals = np.asarray(data["rarity_score"], dtype=float)
 
     finite_mask = (
@@ -308,6 +310,7 @@ def generate_diagnostic_plots(
         & np.isfinite(sum_rarity)
         & np.isfinite(log_count_observations)
         & np.isfinite(log_sum_rarity)
+        & np.isfinite(expected_log_sum_rarity)
         & np.isfinite(residuals)
     )
 
@@ -315,6 +318,7 @@ def generate_diagnostic_plots(
     sum_rarity = sum_rarity[finite_mask]
     log_count_observations = log_count_observations[finite_mask]
     log_sum_rarity = log_sum_rarity[finite_mask]
+    expected_log_sum_rarity = expected_log_sum_rarity[finite_mask]
     residuals = residuals[finite_mask]
 
     intercept = summary["regression_intercept"]
@@ -363,6 +367,18 @@ def generate_diagnostic_plots(
         diagnostics_output_dir / "log_sum_rarity_vs_log_count_observations.png",
         dpi=160,
     )
+    plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+    ax.scatter(expected_log_sum_rarity, residuals, s=5, alpha=0.18, linewidths=0)
+    ax.axhline(y=0, color="#d62728", linewidth=2, linestyle="--", label="y=0")
+    ax.set_title("Residuals vs Fitted values")
+    ax.set_xlabel("Fitted values (expected log(sum_rarity))")
+    ax.set_ylabel("Residuals (rarity_score)")
+    ax.grid(True, alpha=0.25)
+    ax.legend(loc="best")
+    fig.tight_layout()
+    fig.savefig(diagnostics_output_dir / "residuals_vs_fitted.png", dpi=160)
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(7, 7))
@@ -417,6 +433,7 @@ def generate_diagnostic_plots(
     print("Plots            :")
     print("  sum_rarity_vs_count_observations.png")
     print("  log_sum_rarity_vs_log_count_observations.png")
+    print("  residuals_vs_fitted.png")
     print("  residuals_qqplot.png")
 
 

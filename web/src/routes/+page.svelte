@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { asset } from '$app/paths';
   import maplibregl, {
     type ExpressionSpecification,
     type FillLayerSpecification,
@@ -32,7 +33,7 @@
   const HOVER_LINE_LAYER_ID = "rare-species-hover-line";
   const pmtilesUrl =
     import.meta.env.PUBLIC_PMTILES_URL?.trim() ||
-    "/tiles/rare_species_cells.pmtiles";
+    asset(`/tiles/rare_species_cells.pmtiles`);
 
   type Metric =
     | "rarity_zscore"
@@ -535,7 +536,6 @@
   </nav>
 
   <footer class="science-note">
-    Areas where rare species are observed more often than expected given
-    observation effort.
+    Areas where an observer should expect to see rarer species than his or her average.
   </footer>
 </main>

@@ -12,7 +12,7 @@ PIPELINE_ROOT = Path(__file__).resolve().parents[1]
 if str(PIPELINE_ROOT) not in sys.path:
     sys.path.insert(0, str(PIPELINE_ROOT))
 
-from rare_species_map.config import DATA_PROCESSED
+from rare_species_map.config import DATA_PROCESSED, H3_VISUALIZATION_RESOLUTIONS
 from rare_species_map.duckdb_utils import get_connection
 
 
@@ -38,7 +38,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--output",
-        default=str(DATA_PROCESSED / "cell_scores.parquet"),
+        default=str(DATA_PROCESSED),
         help="Output H3 cell scores parquet path",
     )
 
@@ -65,6 +65,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def build_aggregation_query(
+    res: int,
     observations_path: Path,
     species_occupancy_path: Path,
 ) -> str:
@@ -75,64 +76,72 @@ def build_aggregation_query(
     This is used to extract data for Python-based GAM fitting.
     """
     return f"""
-    WITH observations AS (
+    WITH valid_observers AS (
+        SELECT DISTINCT o1.recordedBy
+        FROM parquet_scan('{observations_path.as_posix()}') o1
+        JOIN parquet_scan('{observations_path.as_posix()}') o2
+            ON o1.recordedBy = o2.recordedBy
+            AND o1.h3_res{res} IS NOT NULL
+            AND o2.h3_res{res} IS NOT NULL
+            AND o1.h3_res{res} <> o2.h3_res{res}
+    ),
+    
+    observations AS (
         SELECT
-            h3_resHigh,
-            speciesKey,
-            recordedBy
-        FROM parquet_scan('{observations_path.as_posix()}')
-        WHERE
-            h3_resHigh IS NOT NULL
-            AND speciesKey IS NOT NULL
-            AND recordedBy IS NOT NULL
+            o.h3_res{res},
+            o.speciesKey,
+            o.recordedBy
+        FROM parquet_scan('{observations_path.as_posix()}') o
+        SEMI JOIN valid_observers v
+            ON o.recordedBy = v.recordedBy
     ),
 
     observations_by_cell AS (
         SELECT
-            h3_resHigh,
+            h3_res{res},
             COUNT(*) AS count_observations
         FROM observations
-        GROUP BY h3_resHigh
+        GROUP BY h3_res{res}
     ),
 
     species_number_by_cell AS (
         SELECT
-            h3_resHigh,
+            h3_res{res},
             COUNT(DISTINCT speciesKey) AS count_species
         FROM observations
-        GROUP BY h3_resHigh
+        GROUP BY h3_res{res}
     ),
 
     observer_number_by_cell AS (
         SELECT
-            h3_resHigh,
+            h3_res{res},
             COUNT(DISTINCT recordedBy) AS count_observers
         FROM observations
-        GROUP BY h3_resHigh
+        GROUP BY h3_res{res}
     ),
 
     observer_counts_by_cell AS (
         SELECT
-            h3_resHigh,
+            h3_res{res},
             recordedBy,
             COUNT(*) AS obs_by_observer
         FROM observations
-        GROUP BY h3_resHigh, recordedBy
+        GROUP BY h3_res{res}, recordedBy
     ),
 
     shannon_by_cell AS (
         SELECT
-            o.h3_resHigh,
+            o.h3_res{res},
             -SUM( (o.obs_by_observer::DOUBLE / ob.count_observations) * LN(o.obs_by_observer::DOUBLE / ob.count_observations) ) AS shannon_H
         FROM observer_counts_by_cell o
         JOIN observations_by_cell ob
-            ON o.h3_resHigh = ob.h3_resHigh
-        GROUP BY o.h3_resHigh
+            ON o.h3_res{res} = ob.h3_res{res}
+        GROUP BY o.h3_res{res}
     ),
 
     neff_by_cell AS (
         SELECT
-            h3_resHigh,
+            h3_res{res},
             shannon_H,
             EXP(shannon_H) AS neff_observers
         FROM shannon_by_cell
@@ -140,7 +149,7 @@ def build_aggregation_query(
 
     species_by_cell_and_observer AS (
         SELECT DISTINCT
-            h3_resHigh,
+            h3_res{res},
             speciesKey,
             recordedBy
         FROM observations
@@ -148,13 +157,13 @@ def build_aggregation_query(
 
     mean_rarity_by_cell_and_observer AS (
         SELECT
-            s.h3_resHigh,
+            s.h3_res{res},
             s.recordedBy,
             AVG(so.rarity) AS mean_rarity
         FROM species_by_cell_and_observer s
         INNER JOIN parquet_scan('{species_occupancy_path.as_posix()}') so
             ON s.speciesKey = so.speciesKey
-        GROUP BY s.h3_resHigh, s.recordedBy
+        GROUP BY s.h3_res{res}, s.recordedBy
     ),
 
     mean_rarity_by_observer AS (
@@ -167,7 +176,7 @@ def build_aggregation_query(
 
     residual_rarity_by_cell_and_observer AS (
         SELECT
-            m.h3_resHigh,
+            m.h3_res{res},
             m.recordedBy,
             m.mean_rarity - o.mean_rarity AS residual_rarity
         FROM mean_rarity_by_cell_and_observer m
@@ -177,14 +186,14 @@ def build_aggregation_query(
 
     residual_rarity_by_cell AS (
         SELECT
-            h3_resHigh,
+            h3_res{res},
             AVG(residual_rarity) AS mean_residual_rarity
         FROM residual_rarity_by_cell_and_observer
-        GROUP BY h3_resHigh
+        GROUP BY h3_res{res}
     )
 
     SELECT
-        r.h3_resHigh,
+        r.h3_res{res},
         r.mean_residual_rarity AS rarity_zscore,
         s.count_species,
         o.count_observations,
@@ -192,18 +201,19 @@ def build_aggregation_query(
         ( 1 - EXP( - n.neff_observers / 4 ) ) * LN(1 + o.count_observations) AS confidence_scores
     FROM residual_rarity_by_cell r
     JOIN neff_by_cell n
-        ON r.h3_resHigh = n.h3_resHigh
+        ON r.h3_res{res} = n.h3_res{res}
     JOIN species_number_by_cell s
-        ON r.h3_resHigh = s.h3_resHigh
+        ON r.h3_res{res} = s.h3_res{res}
     JOIN observations_by_cell o
-        ON r.h3_resHigh = o.h3_resHigh
+        ON r.h3_res{res} = o.h3_res{res}
     JOIN observer_number_by_cell ob
-        ON r.h3_resHigh = ob.h3_resHigh
-    ORDER BY r.h3_resHigh
+        ON r.h3_res{res} = ob.h3_res{res}
+    ORDER BY r.h3_res{res}
     """
 
 
 def fetch_cell_data(
+    res: int,
     observations_path: Path,
     species_occupancy_path: Path,
 ) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -214,7 +224,7 @@ def fetch_cell_data(
         (h3_indices, count_observations, count_species, sum_rarity, confidence_scores)
     """
     con = get_connection()
-    query = build_aggregation_query(observations_path, species_occupancy_path)
+    query = build_aggregation_query(res, observations_path, species_occupancy_path)
 
     result = con.execute(query).fetchall()
     con.close()
@@ -248,6 +258,7 @@ def fetch_cell_data(
 
 
 def export_scores_to_parquet(
+    res: int,
     output_path: Path,
     h3_indices: list[int],
     rarity_zscore: np.ndarray,
@@ -269,7 +280,7 @@ def export_scores_to_parquet(
     # Create PyArrow table
     table = pa.table(
         {
-            "h3_resHigh": pa.array(h3_indices, type=pa.uint64()),
+            f"h3_res{res}": pa.array(h3_indices, type=pa.uint64()),
             "rarity_zscore": pa.array(rarity_zscore, type=pa.float64()),
             "count_species": pa.array(count_species, type=pa.uint64()),
             "count_observations": pa.array(count_observations, type=pa.uint64()),
@@ -281,8 +292,9 @@ def export_scores_to_parquet(
     # Write to Parquet with compression
     import pyarrow.parquet as pq
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    pq.write_table(table, output_path, compression="zstd", row_group_size=100000)
+    output_path.mkdir(parents=True, exist_ok=True)
+    file_path = output_path / f"cell_scores{res}.parquet"
+    pq.write_table(table, file_path, compression="zstd", row_group_size=100000)
 
 
 
@@ -310,33 +322,36 @@ def main() -> None:
     print(f"Output            : {output_path}")
     print()
 
-    # Fetch aggregated cell data from DuckDB
-    print("Fetching cell aggregates from DuckDB...")
-    h3_indices, rarity_zscore, count_species, count_observations, count_observers, confidence_scores = fetch_cell_data(
-        observations_path=observations_path,
-        species_occupancy_path=species_occupancy_path,
-    )
-    print(f"  Cells loaded: {len(h3_indices):,}")
+    for res in H3_VISUALIZATION_RESOLUTIONS:
+        # Fetch aggregated cell data from DuckDB
+        print(f"Fetching cell aggregates from DuckDB, resolution {res}...")
+        h3_indices, rarity_zscore, count_species, count_observations, count_observers, confidence_scores = fetch_cell_data(
+            res=res,
+            observations_path=observations_path,
+            species_occupancy_path=species_occupancy_path,
+        )
+        print(f"  Cells loaded: {len(h3_indices):,}")
 
-    # Export results to Parquet
-    print("Exporting results to Parquet...")
-    export_scores_to_parquet(
-        output_path=output_path,
-        h3_indices=h3_indices,
-        rarity_zscore=rarity_zscore,
-        count_observations=count_observations,
-        count_species=count_species,
-        count_observers=count_observers,
-        confidence_scores=confidence_scores,
-    )
-    print(f"  Written to: {output_path}")
+        # Export results to Parquet
+        print("Exporting results to Parquet...")
+        export_scores_to_parquet(
+            res=res,
+            output_path=output_path,
+            h3_indices=h3_indices,
+            rarity_zscore=rarity_zscore,
+            count_observations=count_observations,
+            count_species=count_species,
+            count_observers=count_observers,
+            confidence_scores=confidence_scores,
+        )
+        print(f"  Written to: {output_path}")
 
-    print()
-    print(f" Rarity z-score quantile 0.025: {np.quantile(rarity_zscore, 0.025):.4f}")
-    print(f" Rarity z-score quantile 0.975: {np.quantile(rarity_zscore, 0.975):.4f}")
-    print(f" Count observations quantile 0.975: {np.quantile(count_observations, 0.975):.0f}")
-    print(f" Count species quantile 0.975: {np.quantile(count_species, 0.975):.0f}")
-    print(f" Count observers quantile 0.975: {np.quantile(count_observers, 0.975):.0f}")
+        print()
+        print(f" Rarity z-score quantile 0.025: {np.quantile(rarity_zscore, 0.025):.4f}")
+        print(f" Rarity z-score quantile 0.975: {np.quantile(rarity_zscore, 0.975):.4f}")
+        print(f" Count observations quantile 0.975: {np.quantile(count_observations, 0.975):.0f}")
+        print(f" Count species quantile 0.975: {np.quantile(count_species, 0.975):.0f}")
+        print(f" Count observers quantile 0.975: {np.quantile(count_observers, 0.975):.0f}")
 
     print()
     print("H3 cell score generation completed.")

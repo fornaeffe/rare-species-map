@@ -1,4 +1,4 @@
-# Rare Species Map — AI Context
+# Rare Species Map
 
 ## Project overview
 
@@ -75,9 +75,7 @@ average mean rarity across all cells visited by that observer.
 Then, for every cell-observer pair:
 
 residual_rarity =
-mean_rarity(cell, observer)
--
-observer_mean_rarity(observer)
+mean_rarity(cell, observer) - observer_mean_rarity(observer)
 
 Interpretation:
 - positive values mean the observer found species rarer than their usual standard

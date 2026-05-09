@@ -224,6 +224,10 @@ def print_stats(output_path: Path) -> None:
 
     stats = con.execute(stats_query).fetchone()
 
+    if stats is None:
+        print("No statistics available.")
+        return
+
     print()
     print("=== Dataset statistics ===")
     print(f"Observations : {stats[0]:,}")

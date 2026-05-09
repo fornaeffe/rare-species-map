@@ -84,6 +84,10 @@ def print_stats(output_path: Path) -> None:
 
     stats = con.execute(stats_query).fetchone()
 
+    if stats is None:
+        print("No statistics available.")
+        return
+
     print()
     print("=== Species occupancy statistics ===")
     print(f"H3 resolution  : {H3_OCCUPANCY_RESOLUTION}")

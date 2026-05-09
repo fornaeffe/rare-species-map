@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 
@@ -14,7 +12,7 @@ PIPELINE_ROOT = Path(__file__).resolve().parents[1]
 if str(PIPELINE_ROOT) not in sys.path:
     sys.path.insert(0, str(PIPELINE_ROOT))
 
-from rare_species_map.config import DATA_PROCESSED, H3_VISUALIZATION_RESOLUTION
+from rare_species_map.config import DATA_PROCESSED
 from rare_species_map.duckdb_utils import get_connection
 
 
@@ -224,12 +222,12 @@ def fetch_cell_data(
     if not result:
         raise ValueError("No cells found in aggregation query")
 
-    h3_indices = []
-    rarity_zscore = []
-    count_species = []
-    count_observations = []
-    count_observers = []
-    confidence_scores = []
+    h3_indices: list[int] = []
+    rarity_zscore: list[float] = []
+    count_species: list[int] = []
+    count_observations: list[int] = []
+    count_observers: list[int] = []
+    confidence_scores: list[float] = []
 
     for row in result:
         h3_indices.append(row[0])
@@ -267,8 +265,6 @@ def export_scores_to_parquet(
     except ImportError as exc:
         raise RuntimeError("Exporting to Parquet requires pyarrow") from exc
 
-    # Build arrays for output
-    n = len(h3_indices)
 
     # Create PyArrow table
     table = pa.table(
@@ -296,7 +292,6 @@ def main() -> None:
     observations_path = Path(args.observations).resolve()
     species_occupancy_path = Path(args.species_occupancy).resolve()
     output_path = Path(args.output).resolve()
-    diagnostics_output_dir = Path(args.diagnostics_output_dir).resolve()
 
     if not observations_path.exists():
         raise FileNotFoundError(f"Observations parquet not found: {observations_path}")

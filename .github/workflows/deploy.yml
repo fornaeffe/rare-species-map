@@ -3,7 +3,11 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches:
-      - main
+      - main      
+    
+    paths: 
+      - 'web/**' 
+      - '.github/workflows/deploy.yml'
 
 jobs:
   build_site:

@@ -357,7 +357,7 @@ def main() -> None:
         print(f" Confidence scores quantile 0.975: {np.quantile(confidence_scores, 0.975):.4f}")
 
         data = {
-            "rarity_quantiles": [np.quantile(rarity_zscore, 0.025), np.quantile(rarity_zscore, 0.5), np.quantile(rarity_zscore, 0.975)],
+            "rarity_quantiles": [np.quantile(rarity_zscore, 0.025), np.quantile(rarity_zscore, 0.5),  np.quantile(rarity_zscore, 0.75), np.quantile(rarity_zscore, 0.975)],
             "count_observations_quantiles": [np.quantile(count_observations, 0.025), np.quantile(count_observations, 0.5), np.quantile(count_observations, 0.975)],
             "count_species_quantiles": [np.quantile(count_species, 0.025), np.quantile(count_species, 0.5), np.quantile(count_species, 0.975)],
             "count_observers_quantiles": [np.quantile(count_observers, 0.025), np.quantile(count_observers, 0.5), np.quantile(count_observers, 0.975)],

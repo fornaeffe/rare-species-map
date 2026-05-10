@@ -5,7 +5,6 @@
     type ExpressionSpecification,
     type FillLayerSpecification,
     type LngLatLike,
-    type Map,
     type MapGeoJSONFeature,
     type MapMouseEvent,
     type MapOptions,
@@ -31,7 +30,6 @@
   const FILL_LAYER_ID = "rare-species-fill";
   const LINE_LAYER_ID = "rare-species-line";
   const HOVER_LINE_LAYER_ID = "rare-species-hover-line";
-  const PUBLIC_PMTILES_URL = import.meta.env.PUBLIC_PMTILES_URL?.trim();
 
   type Metric =
     | "rarity_zscore"
@@ -45,12 +43,20 @@
     count_species?: number;
     count_observers?: number;
     rarity_zscore?: number;
-    confidence_scores?: number[];
+    confidence_scores?: number;
   };
 
   type LayerMouseEvent = MapMouseEvent & {
     features?: MapGeoJSONFeature[];
   };
+
+  type CellScoresSummary = {
+    rarity_quantiles: number[];
+    count_observations_quantiles: number[];
+    count_species_quantiles: number[];
+    count_observers_quantiles: number[];
+    confidence_scores_quantiles: number[];
+  }
 
   const metricLabels: Record<Metric, string> = {
     rarity_zscore: "Rarity Z-score",
@@ -69,7 +75,7 @@
   const initialCenter: LngLatLike = [12.45, 42.7];
 
   let mapContainer: HTMLDivElement;
-  let map = $state<Map | undefined>();
+  let map = $state<maplibregl.Map | undefined>();
   let popup = $state<Popup | undefined>();
   let protocol = $state<Protocol | undefined>();
   let isMapReady = $state(false);
@@ -79,25 +85,81 @@
   let scoreFloor = $state(-1.5);
   let selectedCell = $state<CellProperties | undefined>();
   let hoveredH3 = $state("");
+  let currentResolution = $state(4);
   let currentPmtilesUrl = $state<string>("");
+  let cellScoresSummary = $state<CellScoresSummary | undefined>();
 
-  function getPmtilesUrl(zoom: number): string {
-    // Map zoom level to appropriate H3 resolution PMTiles
-    if (zoom >= 8) return asset(`/tiles/rare_species_cells7.pmtiles`);
-    if (zoom >= 7) return asset(`/tiles/rare_species_cells6.pmtiles`);
-    if (zoom >= 5) return asset(`/tiles/rare_species_cells5.pmtiles`);
-    if (zoom >= 4) return asset(`/tiles/rare_species_cells4.pmtiles`);
-    return asset(`/tiles/rare_species_cells3.pmtiles`);
+  // Cache dei summary caricati
+  const summariesByResolution = new Map<number, CellScoresSummary>();
+
+  async function loadCellScoresSummaries(): Promise<void> {
+    const resolutions = [3, 4, 5, 6, 7];
+
+    await Promise.all(
+      resolutions.map(async (resolution) => {
+        const response = await fetch(
+          asset(`/tiles/cell_scores_summary${resolution}.json`)
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            `Failed to load summary for resolution ${resolution}`
+          );
+        }
+
+        const summary: CellScoresSummary =
+          (await response.json()) as CellScoresSummary;
+
+        summariesByResolution.set(resolution, summary);
+      })
+    );
+
+    // Inizializza lo stato con il livello 4
+    const initialSummary = summariesByResolution.get(4);
+
+    if (initialSummary === undefined) {
+      throw new Error('Missing summary for resolution 4');
+    }
+
+    cellScoresSummary = initialSummary;
+  }
+
+  loadCellScoresSummaries().catch((error) => {
+    console.error("Error loading cell scores summaries:", error);
+    tileError = "Failed to load cell scores summaries.";
+  });
+
+  function getResolutionForZoom(zoom: number): number {
+    if (zoom >= 8) return 7;
+    if (zoom >= 7) return 6;
+    if (zoom >= 5) return 5;
+    if (zoom >= 4) return 4;
+    return 3;
+  }
+
+  function getPmtilesUrl(resolution: number): string {
+    return asset(`/tiles/rare_species_cells${resolution}.pmtiles`);
+  }
+
+  function getCurrentResolution(): number {
+    return getResolutionForZoom(map?.getZoom() ?? 0);
   }
 
   function getCurrentPmtilesUrl(): string {
-    return getPmtilesUrl(map?.getZoom() ?? 0);
+    return getPmtilesUrl(getCurrentResolution());
   }
 
+
   function handleZoomChange() {
-    const newUrl = getCurrentPmtilesUrl();
+    const newResolution = getCurrentResolution();
+    const newUrl = getPmtilesUrl(newResolution);
+
     if (newUrl !== currentPmtilesUrl) {
       currentPmtilesUrl = newUrl;
+      currentResolution = newResolution;
+
+      cellScoresSummary = summariesByResolution.get(newResolution);
+
       updateSource();
     }
   }
@@ -311,57 +373,64 @@
 
   function metricColorExpression(): ExpressionSpecification {
     if (metric === "count_observations") {
+
+      const maxCount = cellScoresSummary?.count_observations_quantiles[2] ?? 500;
+
       return [
         "interpolate",
         ["linear"],
         ["coalesce", ["get", "count_observations"], 0],
-        1,
+        0,
         "#e8f3ea",
-        5,
+        maxCount * 0.2,
         "#b8d9c3",
-        25,
+        maxCount * 0.4,
         "#6fb0a4",
-        100,
+        maxCount * 0.6,
         "#397996",
-        500,
+        maxCount * 0.8,
         "#24476f",
-        1500,
+        maxCount,
         "#171d3f",
       ];
     }
 
     if (metric === "count_species") {
+
+      const maxCount = cellScoresSummary?.count_species_quantiles[2] ?? 500;
+
       return [
         "interpolate",
         ["linear"],
         ["coalesce", ["get", "count_species"], 0],
-        1,
-        "#fff1cf",
-        5,
-        "#f7c66a",
-        25,
-        "#de7d46",
-        100,
-        "#aa3c52",
-        500,
-        "#572461",
+        0,
+        "#f1ffcf",
+        maxCount * 0.25,
+        "#c6f76a",
+        maxCount * 0.5,
+        "#7dde46",
+        maxCount * 0.75,
+        "#3caa52",
+        maxCount,
+        "#245726",
       ];
     }
 
     if (metric === "count_observers") {
+      const maxCount = cellScoresSummary?.count_observers_quantiles[2] ?? 500;
       return [
         "interpolate",
         ["linear"],
         ["coalesce", ["get", "count_observers"], 0],
-        1,
+        0,
         "#fff1cf",
-        4,
+        maxCount * 0.25,
         "#f7c66a",
-        20,
+        maxCount * 0.5,
         "#de7d46",
-        50,
+        maxCount * 0.75,
         "#aa3c52",
-        100,
+        maxCount,
         "#572461",
       ];
     }
@@ -370,9 +439,9 @@
       "interpolate",
       ["linear"],
       ["coalesce", ["get", "rarity_zscore"], 0],
-      -0.0484, '#2166ac',
-      0,    '#f7f7f7',
-      0.0757, '#b2182b'
+      cellScoresSummary?.rarity_quantiles[0] ?? 0, '#2166ac',
+      cellScoresSummary?.rarity_quantiles[1] ?? 0, '#f7f7f7',
+      cellScoresSummary?.rarity_quantiles[3] ?? 0, '#b2182b'
     ];
   }
 
@@ -532,6 +601,10 @@
         <div>
           <dt>Observers</dt>
           <dd>{formatCount(selectedCell.count_observers)}</dd>
+        </div>
+        <div>
+          <dt>Confidence</dt>
+          <dd>{formatCount(selectedCell.confidence_scores)}</dd>
         </div>
       </dl>
     {:else}

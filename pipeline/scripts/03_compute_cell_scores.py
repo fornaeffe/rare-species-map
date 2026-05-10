@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -12,7 +13,7 @@ PIPELINE_ROOT = Path(__file__).resolve().parents[1]
 if str(PIPELINE_ROOT) not in sys.path:
     sys.path.insert(0, str(PIPELINE_ROOT))
 
-from rare_species_map.config import DATA_PROCESSED, H3_VISUALIZATION_RESOLUTIONS
+from rare_species_map.config import DATA_PROCESSED, GENERATED_JSONS, H3_VISUALIZATION_RESOLUTIONS
 from rare_species_map.duckdb_utils import get_connection
 
 
@@ -352,6 +353,19 @@ def main() -> None:
         print(f" Count observations quantile 0.975: {np.quantile(count_observations, 0.975):.0f}")
         print(f" Count species quantile 0.975: {np.quantile(count_species, 0.975):.0f}")
         print(f" Count observers quantile 0.975: {np.quantile(count_observers, 0.975):.0f}")
+        print(f" Confidence scores quantile 0.025: {np.quantile(confidence_scores, 0.025):.4f}")
+        print(f" Confidence scores quantile 0.975: {np.quantile(confidence_scores, 0.975):.4f}")
+
+        data = {
+            "rarity_quantiles": [np.quantile(rarity_zscore, 0.025), np.quantile(rarity_zscore, 0.5), np.quantile(rarity_zscore, 0.975)],
+            "count_observations_quantiles": [np.quantile(count_observations, 0.025), np.quantile(count_observations, 0.5), np.quantile(count_observations, 0.975)],
+            "count_species_quantiles": [np.quantile(count_species, 0.025), np.quantile(count_species, 0.5), np.quantile(count_species, 0.975)],
+            "count_observers_quantiles": [np.quantile(count_observers, 0.025), np.quantile(count_observers, 0.5), np.quantile(count_observers, 0.975)],
+            "confidence_scores_quantiles": [np.quantile(confidence_scores, 0.025), np.quantile(confidence_scores, 0.5), np.quantile(confidence_scores, 0.975)],
+        }
+
+        with open(GENERATED_JSONS / f"cell_scores_summary{res}.json", "w") as f:
+            json.dump(data, f)
 
     print()
     print("H3 cell score generation completed.")

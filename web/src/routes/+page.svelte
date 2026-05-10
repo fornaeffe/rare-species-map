@@ -87,7 +87,7 @@
     if (zoom >= 7) return asset(`/tiles/rare_species_cells6.pmtiles`);
     if (zoom >= 5) return asset(`/tiles/rare_species_cells5.pmtiles`);
     if (zoom >= 4) return asset(`/tiles/rare_species_cells4.pmtiles`);
-    return PUBLIC_PMTILES_URL || asset(`/tiles/rare_species_cells3.pmtiles`);
+    return asset(`/tiles/rare_species_cells3.pmtiles`);
   }
 
   function getCurrentPmtilesUrl(): string {
@@ -447,7 +447,6 @@
 
   <section class="topbar" aria-label="Map overview">
     <div>
-      <p class="eyebrow">H3 resolution 8 residual scores</p>
       <h1>Rare Species Map</h1>
     </div>
     <div class="status-pill" class:error={tileError}>

@@ -83,8 +83,8 @@
 
   function getPmtilesUrl(zoom: number): string {
     // Map zoom level to appropriate H3 resolution PMTiles
-    if (zoom >= 7) return asset(`/tiles/rare_species_cells7.pmtiles`);
-    if (zoom >= 6) return asset(`/tiles/rare_species_cells6.pmtiles`);
+    if (zoom >= 8) return asset(`/tiles/rare_species_cells7.pmtiles`);
+    if (zoom >= 7) return asset(`/tiles/rare_species_cells6.pmtiles`);
     if (zoom >= 5) return asset(`/tiles/rare_species_cells5.pmtiles`);
     if (zoom >= 4) return asset(`/tiles/rare_species_cells4.pmtiles`);
     return PUBLIC_PMTILES_URL || asset(`/tiles/rare_species_cells3.pmtiles`);

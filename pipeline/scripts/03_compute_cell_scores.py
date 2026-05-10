@@ -79,13 +79,11 @@ def build_aggregation_query(
     """
     return f"""
     WITH valid_observers AS (
-        SELECT DISTINCT o1.recordedBy
-        FROM parquet_scan('{observations_path.as_posix()}') o1
-        JOIN parquet_scan('{observations_path.as_posix()}') o2
-            ON o1.recordedBy = o2.recordedBy
-            AND o1.h3_res{res} IS NOT NULL
-            AND o2.h3_res{res} IS NOT NULL
-            AND o1.h3_res{res} <> o2.h3_res{res}
+        SELECT recordedBy
+        FROM parquet_scan('{observations_path.as_posix()}')
+        WHERE recordedBy IS NOT NULL
+        GROUP BY recordedBy
+        HAVING MIN(h3_res{res}) != MAX(h3_res{res})
     ),
     
     observations AS (
@@ -235,7 +233,7 @@ def fetch_cell_data(
 
     print()
     print(f"  Query executed in {elapsed:.1f} seconds.")
-    
+
     con.close()
 
     if not result:

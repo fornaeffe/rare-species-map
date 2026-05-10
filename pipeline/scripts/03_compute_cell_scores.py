@@ -96,30 +96,6 @@ def build_aggregation_query(
             ON o.recordedBy = v.recordedBy
     ),
 
-    observations_by_cell AS (
-        SELECT
-            h3_res{res},
-            COUNT(*) AS count_observations
-        FROM observations
-        GROUP BY h3_res{res}
-    ),
-
-    species_number_by_cell AS (
-        SELECT
-            h3_res{res},
-            COUNT(DISTINCT speciesKey) AS count_species
-        FROM observations
-        GROUP BY h3_res{res}
-    ),
-
-    observer_number_by_cell AS (
-        SELECT
-            h3_res{res},
-            COUNT(DISTINCT recordedBy) AS count_observers
-        FROM observations
-        GROUP BY h3_res{res}
-    ),
-
     observer_counts_by_cell AS (
         SELECT
             h3_res{res},
@@ -129,13 +105,38 @@ def build_aggregation_query(
         GROUP BY h3_res{res}, recordedBy
     ),
 
+    cell_metrics AS (
+        SELECT
+            h3_res{res},
+            COUNT(*) AS count_observations,
+            COUNT(DISTINCT speciesKey) AS count_species,
+            COUNT(DISTINCT recordedBy) AS count_observers
+        FROM observations
+        GROUP BY h3_res{res}
+    ),
+
+    regression_data AS (
+        SELECT
+            h3_res{res},
+            ln(count_observations) AS log_count_observations,
+            ln(count_species) AS log_count_species,
+        FROM cell_metrics
+    ),
+
+    regression AS (
+        SELECT
+            regr_intercept(log_count_species, log_count_observations) AS intercept,
+            regr_slope(log_count_species, log_count_observations) AS slope
+        FROM regression_data
+    ),
+
     shannon_by_cell AS (
         SELECT
             o.h3_res{res},
-            -SUM( (o.obs_by_observer::DOUBLE / ob.count_observations) * LN(o.obs_by_observer::DOUBLE / ob.count_observations) ) AS shannon_H
+            -SUM( (o.obs_by_observer::DOUBLE / cm.count_observations) * LN(o.obs_by_observer::DOUBLE / cm.count_observations) ) AS shannon_H
         FROM observer_counts_by_cell o
-        JOIN observations_by_cell ob
-            ON o.h3_res{res} = ob.h3_res{res}
+        JOIN cell_metrics cm
+            ON o.h3_res{res} = cm.h3_res{res}
         GROUP BY o.h3_res{res}
     ),
 
@@ -195,20 +196,19 @@ def build_aggregation_query(
     SELECT
         r.h3_res{res},
         r.mean_residual_rarity AS rarity_zscore,
-        s.count_species,
-        o.count_observations,
-        ob.count_observers,
-        ( 1 - EXP( - n.neff_observers / 4 ) ) * ( 1 - EXP( - o.count_observations / 40 ) ) AS confidence_scores,
-        ( s.count_species / o.count_observations ) AS species_vs_observations
+        cm.count_species,
+        cm.count_observations,
+        cm.count_observers,
+        ( 1 - EXP( - n.neff_observers / 4 ) ) * ( 1 - EXP( - cm.count_observations / 40 ) ) AS confidence_scores,
+        ( rd.log_count_species - (rd.log_count_observations * reg.slope + reg.intercept) ) AS species_vs_observations
     FROM residual_rarity_by_cell r
     JOIN neff_by_cell n
         ON r.h3_res{res} = n.h3_res{res}
-    JOIN species_number_by_cell s
-        ON r.h3_res{res} = s.h3_res{res}
-    JOIN observations_by_cell o
-        ON r.h3_res{res} = o.h3_res{res}
-    JOIN observer_number_by_cell ob
-        ON r.h3_res{res} = ob.h3_res{res}
+    JOIN cell_metrics cm
+        ON r.h3_res{res} = cm.h3_res{res}
+    JOIN regression_data rd
+         ON r.h3_res{res} = rd.h3_res{res}
+    CROSS JOIN regression reg
     ORDER BY r.h3_res{res}
     """
 

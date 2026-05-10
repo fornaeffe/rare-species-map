@@ -11,10 +11,9 @@ if str(PIPELINE_ROOT) not in sys.path:
     sys.path.insert(0, str(PIPELINE_ROOT))
 
 from rare_species_map.config import (
+    DATA_RAW,
     DATA_PROCESSED,
-    H3_OCCUPANCY_RESOLUTION,
-    H3_VISUALIZATION_RESOLUTION,
-    MAX_COORDINATE_UNCERTAINTY,
+    H3_VISUALIZATION_RESOLUTIONS,
     DEFAULT_COUNTRY,
 )
 from rare_species_map.duckdb_utils import get_connection
@@ -39,7 +38,7 @@ CSV_COLUMNS = {
     "countryCode": "VARCHAR",
     "locality": "VARCHAR",
     "stateProvince": "VARCHAR",
-    "occurrenceStatus": "VARCHAR",
+    "occurrenceStatus": "VARCHAR", # all PRESENT
     "individualCount": "BIGINT",
     "publishingOrgKey": "VARCHAR",
     "decimalLatitude": "DOUBLE",
@@ -56,7 +55,7 @@ CSV_COLUMNS = {
     "year": "BIGINT",
     "taxonKey": "BIGINT",
     "speciesKey": "BIGINT",
-    "basisOfRecord": "VARCHAR",
+    "basisOfRecord": "VARCHAR", # all HUMAN_OBSERVATION
     "institutionCode": "VARCHAR",
     "collectionCode": "VARCHAR",
     "catalogNumber": "VARCHAR",
@@ -67,7 +66,7 @@ CSV_COLUMNS = {
     "rightsHolder": "VARCHAR",
     "recordedBy": "VARCHAR",
     "typeStatus": "VARCHAR",
-    "establishmentMeans": "VARCHAR",
+    "establishmentMeans": "VARCHAR", # all NULL
     "lastInterpreted": "VARCHAR",
     "mediaType": "VARCHAR",
     "issue": "VARCHAR",
@@ -81,7 +80,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--input",
-        required=True,
+        default=str(DATA_RAW),
         help="Path to GBIF TSV file",
     )
 
@@ -95,13 +94,6 @@ def parse_args() -> argparse.Namespace:
         "--country",
         default=DEFAULT_COUNTRY,
         help=f"Country filter (default: {DEFAULT_COUNTRY})",
-    )
-
-    parser.add_argument(
-        "--uncertainty",
-        type=float,
-        default=MAX_COORDINATE_UNCERTAINTY,
-        help="Maximum coordinate uncertainty in meters",
     )
 
     parser.add_argument(
@@ -128,14 +120,27 @@ def detect_encoding(input_path: Path, requested_encoding: str) -> str:
 
     return "utf-8"
 
+def build_h3_columns(resolutions: list[int]) -> str:
+    return ",\n".join(
+        f"""
+        h3_latlng_to_cell(
+            decimalLatitude,
+            decimalLongitude,
+            {res}
+        ) AS h3_res{res}
+        """.strip()
+        for res in resolutions
+    )
 
 def build_query(
     input_path: Path,
     output_path: Path,
     country: str,
-    uncertainty: float,
     encoding: str,
 ) -> str:
+    
+    h3_columns = build_h3_columns(H3_VISUALIZATION_RESOLUTIONS)
+
     return f"""
     COPY (
         SELECT
@@ -148,26 +153,11 @@ def build_query(
             coordinateUncertaintyInMeters,
 
             taxonRank,
-            occurrenceStatus,
-            basisOfRecord,
             recordedBy,
 
-            eventDate,
-            year,
             countryCode,
-            issue,
 
-            h3_latlng_to_cell(
-                decimalLatitude,
-                decimalLongitude,
-                {H3_OCCUPANCY_RESOLUTION}
-            ) AS h3_resLow,
-
-            h3_latlng_to_cell(
-                decimalLatitude,
-                decimalLongitude,
-                {H3_VISUALIZATION_RESOLUTION}
-            ) AS h3_resHigh
+            {h3_columns}
 
         FROM read_csv(
             '{input_path.as_posix()}',
@@ -183,6 +173,8 @@ def build_query(
         WHERE
             speciesKey IS NOT NULL
 
+            AND recordedBy IS NOT NULL
+
             AND taxonRank = 'SPECIES'
 
             AND decimalLatitude IS NOT NULL
@@ -191,16 +183,7 @@ def build_query(
             AND decimalLatitude BETWEEN -90 AND 90
             AND decimalLongitude BETWEEN -180 AND 180
 
-            AND occurrenceStatus = 'PRESENT'
-
-            AND basisOfRecord = 'HUMAN_OBSERVATION'
-
             AND countryCode = '{country}'
-
-            AND (
-                coordinateUncertaintyInMeters IS NULL
-                OR coordinateUncertaintyInMeters <= {uncertainty}
-            )
     )
     TO '{output_path.as_posix()}'
     (
@@ -217,18 +200,20 @@ def print_stats(output_path: Path) -> None:
     stats_query = f"""
     SELECT
         COUNT(*) AS n_observations,
-        COUNT(DISTINCT speciesKey) AS n_species,
-        COUNT(DISTINCT h3_resHigh) AS n_cells
+        COUNT(DISTINCT speciesKey) AS n_species
     FROM parquet_scan('{output_path.as_posix()}')
     """
 
     stats = con.execute(stats_query).fetchone()
 
+    if stats is None:
+        print("No statistics available.")
+        return
+
     print()
     print("=== Dataset statistics ===")
     print(f"Observations : {stats[0]:,}")
     print(f"Species      : {stats[1]:,}")
-    print(f"H3 cells     : {stats[2]:,}")
 
     con.close()
 
@@ -255,7 +240,6 @@ def main() -> None:
         input_path=input_path,
         output_path=output_path,
         country=args.country,
-        uncertainty=args.uncertainty,
         encoding=encoding,
     )
 

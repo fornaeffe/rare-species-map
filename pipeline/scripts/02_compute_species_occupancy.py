@@ -42,11 +42,11 @@ def build_query(input_path: Path, output_path: Path) -> str:
                 speciesKey,
                 min(species) AS species,
                 COUNT(*) AS n_observations,
-                COUNT(DISTINCT h3_resLow) AS occupancy
+                COUNT(DISTINCT h3_res{H3_OCCUPANCY_RESOLUTION}) AS occupancy
             FROM parquet_scan('{input_path.as_posix()}')
             WHERE
                 speciesKey IS NOT NULL
-                AND h3_resLow IS NOT NULL
+                AND h3_res{H3_OCCUPANCY_RESOLUTION} IS NOT NULL
             GROUP BY speciesKey
         )
 
@@ -83,6 +83,10 @@ def print_stats(output_path: Path) -> None:
     """
 
     stats = con.execute(stats_query).fetchone()
+
+    if stats is None:
+        print("No statistics available.")
+        return
 
     print()
     print("=== Species occupancy statistics ===")

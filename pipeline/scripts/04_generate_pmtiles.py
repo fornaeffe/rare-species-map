@@ -17,7 +17,7 @@ PIPELINE_ROOT = Path(__file__).resolve().parents[1]
 if str(PIPELINE_ROOT) not in sys.path:
     sys.path.insert(0, str(PIPELINE_ROOT))
 
-from rare_species_map.config import DATA_PROCESSED, DATA_TILES, H3_VISUALIZATION_RESOLUTION
+from rare_species_map.config import DATA_PROCESSED, DATA_TILES, H3_VISUALIZATION_RESOLUTIONS, H3_ZOOM_RANGES
 from rare_species_map.duckdb_utils import get_connection
 
 
@@ -31,13 +31,13 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--input",
-        default=str(DATA_PROCESSED / "cell_scores.parquet"),
+        default=str(DATA_PROCESSED),
         help="Input H3 cell scores parquet path",
     )
 
     parser.add_argument(
         "--output",
-        default=str(DATA_TILES / "rare_species_cells.pmtiles"),
+        default=str(DATA_TILES),
         help="Output PMTiles path",
     )
 
@@ -47,19 +47,6 @@ def parse_args() -> argparse.Namespace:
         help=f"Vector tile layer name (default: {DEFAULT_LAYER_NAME})",
     )
 
-    parser.add_argument(
-        "--min-zoom",
-        type=int,
-        default=0,
-        help="Minimum tile zoom",
-    )
-
-    parser.add_argument(
-        "--max-zoom",
-        type=int,
-        default=12,
-        help="Maximum tile zoom",
-    )
 
     parser.add_argument(
         "--batch-size",
@@ -75,12 +62,6 @@ def parse_args() -> argparse.Namespace:
         help="Tile encoding format. Use mvt for broad MapLibre compatibility.",
     )
 
-    parser.add_argument(
-        "--base-zoom",
-        type=int,
-        default=None,
-        help="Zoom level at and above which all features are kept. Defaults to max zoom.",
-    )
 
     parser.add_argument(
         "--drop-rate",
@@ -99,12 +80,6 @@ def parse_args() -> argparse.Namespace:
         "--no-simplification",
         action="store_true",
         help="Disable geometry snapping/simplification in freestiler",
-    )
-
-    parser.add_argument(
-        "--geojsonseq",
-        default=None,
-        help="Optional GeoJSONSeq output path. Useful for debugging.",
     )
 
     parser.add_argument(
@@ -136,8 +111,8 @@ def h3_boundary_geojson(h3_cell: int) -> list[list[list[float]]]:
     return [ring]
 
 
-def build_feature(row: dict[str, Any]) -> dict[str, Any]:
-    h3_cell = int(row["h3_resHigh"])
+def build_feature(row: dict[str, Any], res: int) -> dict[str, Any]:
+    h3_cell = int(row[f"h3_res{res}"])
 
     return {
         "type": "Feature",
@@ -156,12 +131,12 @@ def build_feature(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def export_geojsonseq(input_path: Path, output_path: Path, batch_size: int) -> int:
+def export_geojsonseq(input_path: Path, output_path: Path, res: int, batch_size: int) -> int:
     con = get_connection()
 
     query = f"""
     SELECT
-        h3_resHigh,
+        h3_res{res},
         rarity_zscore,
         count_species,
         count_observations,
@@ -169,7 +144,7 @@ def export_geojsonseq(input_path: Path, output_path: Path, batch_size: int) -> i
         confidence_scores,
     FROM parquet_scan('{input_path.as_posix()}')
     WHERE
-        h3_resHigh IS NOT NULL
+        h3_res{res} IS NOT NULL
         AND rarity_zscore IS NOT NULL
         AND count_species IS NOT NULL
         AND count_observations IS NOT NULL
@@ -184,7 +159,7 @@ def export_geojsonseq(input_path: Path, output_path: Path, batch_size: int) -> i
         for batch in reader:
             rows = batch.to_pylist()
             for row in rows:
-                feature = build_feature(row)
+                feature = build_feature(row, res)
                 file.write(json.dumps(feature, separators=(",", ":")))
                 file.write("\n")
                 n_features += 1
@@ -207,7 +182,6 @@ def run_freestiler(
     min_zoom: int,
     max_zoom: int,
     tile_format: str,
-    base_zoom: int | None,
     drop_rate: float | None,
     coalesce: bool,
     simplification: bool,
@@ -222,7 +196,6 @@ def run_freestiler(
         tile_format=tile_format,
         min_zoom=min_zoom,
         max_zoom=max_zoom,
-        base_zoom=base_zoom,
         drop_rate=drop_rate,
         coalesce=coalesce,
         simplification=simplification,
@@ -235,87 +208,84 @@ def run_freestiler(
 def main() -> None:
     args = parse_args()
 
-    input_path = Path(args.input).resolve()
-    output_path = Path(args.output).resolve()
+    print()
+    print("=== PMTiles Generation Pipeline ===")
 
-    if not input_path.exists():
-        raise FileNotFoundError(f"Cell scores parquet not found: {input_path}")
+    for i in range(len(H3_VISUALIZATION_RESOLUTIONS)):
+        res = H3_VISUALIZATION_RESOLUTIONS[i]
+        min_zoom, max_zoom = H3_ZOOM_RANGES[i]
 
-    if args.min_zoom < 0 or args.max_zoom < args.min_zoom:
-        raise ValueError("--max-zoom must be greater than or equal to --min-zoom")
+        input_path = Path(args.input).resolve() / f"cell_scores{res}.parquet"
+        output_path = Path(args.output).resolve() / f"rare_species_cells{res}.pmtiles"
 
-    if args.base_zoom is not None and not args.min_zoom <= args.base_zoom <= args.max_zoom:
-        raise ValueError("--base-zoom must be between --min-zoom and --max-zoom")
+        if not input_path.exists():
+            raise FileNotFoundError(f"Cell scores parquet not found: {input_path}")
 
-    if args.drop_rate is not None and args.drop_rate <= 0:
-        raise ValueError("--drop-rate must be greater than 0")
+        if min_zoom < 0 or max_zoom < min_zoom:
+            raise ValueError("max-zoom must be greater than or equal to min-zoom")
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+        if args.drop_rate is not None and args.drop_rate <= 0:
+            raise ValueError("--drop-rate must be greater than 0")
 
-    geojsonseq_path: Path
-    using_temp_geojsonseq = args.geojsonseq is None
-    if using_temp_geojsonseq:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
         temp_file = tempfile.NamedTemporaryFile(
             mode="w",
             suffix=".geojsonseq",
-            prefix="rare_species_cells_",
+            prefix=f"rare_species_cells_{res}_",
             dir=output_path.parent,
             delete=False,
         )
         temp_file.close()
         geojsonseq_path = Path(temp_file.name)
-    else:
-        geojsonseq_path = Path(args.geojsonseq).resolve()
-        geojsonseq_path.parent.mkdir(parents=True, exist_ok=True)
-
-    print()
-    print("=== PMTiles Generation Pipeline ===")
-    print(f"Input       : {input_path}")
-    print(f"GeoJSONSeq  : {geojsonseq_path}")
-    print(f"Output      : {output_path}")
-    print(f"Layer       : {args.layer}")
-    print(f"H3 res      : {H3_VISUALIZATION_RESOLUTION}")
-    print(f"Zooms       : {args.min_zoom}-{args.max_zoom}")
-    print(f"Tile format : {args.tile_format}")
-    print()
-
-    try:
-        print("Exporting H3 cells to GeoJSONSeq...")
-        n_features = export_geojsonseq(
-            input_path=input_path,
-            output_path=geojsonseq_path,
-            batch_size=args.batch_size,
-        )
-        print(f"Exported features: {n_features:,}")
-        print()
-
-        if args.geojsonseq_only:
-            print("GeoJSONSeq export completed.")
-            return
-
-        print("Running freestiler...")
-        print()
-
-        run_freestiler(
-            geojsonseq_path=geojsonseq_path,
-            output_path=output_path,
-            layer_name=args.layer,
-            min_zoom=args.min_zoom,
-            max_zoom=args.max_zoom,
-            tile_format=args.tile_format,
-            base_zoom=args.base_zoom,
-            drop_rate=args.drop_rate,
-            coalesce=args.coalesce,
-            simplification=not args.no_simplification,
-            quiet=args.quiet,
-        )
 
         print()
-        print("PMTiles generation completed.")
+        print(f"Input       : {input_path}")
+        print(f"GeoJSONSeq  : {geojsonseq_path}")
+        print(f"Output      : {output_path}")
+        print(f"Layer       : {args.layer}")
+        print(f"H3 res      : {res}")
+        print(f"Zooms       : {min_zoom}-{max_zoom}")
+        print(f"Tile format : {args.tile_format}")
+        print()
 
-    finally:
-        if using_temp_geojsonseq and not args.keep_geojsonseq:
-            geojsonseq_path.unlink(missing_ok=True)
+        try:
+            print("Exporting H3 cells to GeoJSONSeq...")
+            n_features = export_geojsonseq(
+                input_path=input_path,
+                output_path=geojsonseq_path,
+                res=res,
+                batch_size=args.batch_size,
+            )
+            print(f"Exported features: {n_features:,}")
+            print()
+
+            if args.geojsonseq_only:
+                print("GeoJSONSeq export completed.")
+                return
+
+            print("Running freestiler...")
+            print()
+
+            run_freestiler(
+                geojsonseq_path=geojsonseq_path,
+                output_path=output_path,
+                layer_name=args.layer,
+                min_zoom=min_zoom,
+                max_zoom=max_zoom,
+                tile_format=args.tile_format,
+                drop_rate=args.drop_rate,
+                coalesce=args.coalesce,
+                simplification=not args.no_simplification,
+                quiet=args.quiet,
+            )
+
+            print()
+            print("PMTiles generation completed.")
+
+        finally:
+            if not args.keep_geojsonseq:
+                geojsonseq_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

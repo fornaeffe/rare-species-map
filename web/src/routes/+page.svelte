@@ -31,9 +31,7 @@
   const FILL_LAYER_ID = "rare-species-fill";
   const LINE_LAYER_ID = "rare-species-line";
   const HOVER_LINE_LAYER_ID = "rare-species-hover-line";
-  const pmtilesUrl =
-    import.meta.env.PUBLIC_PMTILES_URL?.trim() ||
-    asset(`/tiles/rare_species_cells.pmtiles`);
+  const PUBLIC_PMTILES_URL = import.meta.env.PUBLIC_PMTILES_URL?.trim();
 
   type Metric =
     | "rarity_zscore"
@@ -81,6 +79,43 @@
   let scoreFloor = $state(-1.5);
   let selectedCell = $state<CellProperties | undefined>();
   let hoveredH3 = $state("");
+  let currentPmtilesUrl = $state<string>("");
+
+  function getPmtilesUrl(zoom: number): string {
+    // Map zoom level to appropriate H3 resolution PMTiles
+    if (zoom >= 8) return asset(`/tiles/rare_species_cells7.pmtiles`);
+    if (zoom >= 7) return asset(`/tiles/rare_species_cells6.pmtiles`);
+    if (zoom >= 5) return asset(`/tiles/rare_species_cells5.pmtiles`);
+    if (zoom >= 4) return asset(`/tiles/rare_species_cells4.pmtiles`);
+    return PUBLIC_PMTILES_URL || asset(`/tiles/rare_species_cells3.pmtiles`);
+  }
+
+  function getCurrentPmtilesUrl(): string {
+    return getPmtilesUrl(map?.getZoom() ?? 0);
+  }
+
+  function handleZoomChange() {
+    const newUrl = getCurrentPmtilesUrl();
+    if (newUrl !== currentPmtilesUrl) {
+      currentPmtilesUrl = newUrl;
+      updateSource();
+    }
+  }
+
+  function updateSource() {
+    if (!map) return;
+
+    // Remove old layers
+    if (map.getLayer(FILL_LAYER_ID)) map.removeLayer(FILL_LAYER_ID);
+    if (map.getLayer(LINE_LAYER_ID)) map.removeLayer(LINE_LAYER_ID);
+    if (map.getLayer(HOVER_LINE_LAYER_ID)) map.removeLayer(HOVER_LINE_LAYER_ID);
+
+    // Remove old source
+    if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
+
+    // Add new source and layers
+    addCellLayers();
+  }
 
   $effect(() => {
     metric;
@@ -91,6 +126,7 @@
     if (!isMapReady) return;
     updateCellLayers();
   });
+
 
   onMount(() => {
     protocol = new Protocol();
@@ -149,6 +185,7 @@
     );
 
     map.on("load", () => {
+      currentPmtilesUrl = getCurrentPmtilesUrl();
       addCellLayers();
       isMapReady = true;
     });
@@ -156,13 +193,14 @@
     map.on("mousemove", FILL_LAYER_ID, handleCellHover);
     map.on("mouseleave", FILL_LAYER_ID, clearHover);
     map.on("click", FILL_LAYER_ID, handleCellClick);
+    map.on("zoomend", handleZoomChange);
     map.on("error", (event) => {
       const message = event.error?.message ?? "";
       if (
         message.includes("rare_species_cells") ||
         message.includes("pmtiles")
       ) {
-        tileError = `PMTiles non trovati o non leggibili: ${pmtilesUrl}`;
+        tileError = `PMTiles non trovati o non leggibili: ${currentPmtilesUrl}`;
       }
     });
 
@@ -176,7 +214,7 @@
   });
 
   function pmtilesSourceUrl() {
-    return `pmtiles://${pmtilesUrl}`;
+    return `pmtiles://${currentPmtilesUrl}`;
   }
 
   function addCellLayers() {

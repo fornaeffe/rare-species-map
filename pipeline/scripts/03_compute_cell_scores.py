@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 import time
 
+import h3
 import numpy as np
 
 PIPELINE_ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +78,8 @@ def build_aggregation_query(
     Returns a query that selects all cells with their metrics.
     This is used to extract data for Python-based GAM fitting.
     """
+    hex_edge_length = h3.average_hexagon_edge_length(res, unit="m")
+
     return f"""
     WITH valid_observers AS (
         SELECT recordedBy
@@ -94,6 +97,7 @@ def build_aggregation_query(
         FROM parquet_scan('{observations_path.as_posix()}') o
         SEMI JOIN valid_observers v
             ON o.recordedBy = v.recordedBy
+        WHERE o.coordinateUncertaintyInMeters <= {hex_edge_length}
     ),
 
     observer_counts_by_cell AS (

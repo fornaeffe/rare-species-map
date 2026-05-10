@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+import time
 
 import numpy as np
 
@@ -228,7 +229,13 @@ def fetch_cell_data(
     con = get_connection()
     query = build_aggregation_query(res, observations_path, species_occupancy_path)
 
+    start = time.monotonic()
     result = con.execute(query).fetchall()
+    elapsed = time.monotonic() - start
+
+    print()
+    print(f"  Query executed in {elapsed:.1f} seconds.")
+    
     con.close()
 
     if not result:

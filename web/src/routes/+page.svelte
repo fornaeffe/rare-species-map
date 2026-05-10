@@ -144,7 +144,7 @@
   }
 
   function getPmtilesUrl(resolution: number): string {
-    return asset(`/tiles/rare_species_cells${resolution}.pmtiles`);
+    return `https://github.com/fornaeffe/rare-species-map/releases/latest/download/rare_species_cells${resolution}.pmtiles`;
   }
 
   function getCurrentResolution(): number {

@@ -13,7 +13,7 @@ web/dev-server*.log
 data/raw/
 data/processed/
 data/tiles/
-# web/static/tiles/*.pmtiles
+web/static/tiles/*.pmtiles
 
 # duckdb
 .duckdb/

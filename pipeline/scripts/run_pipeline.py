@@ -15,8 +15,7 @@ if str(PIPELINE_ROOT) not in sys.path:
 from rare_species_map.config import (
     DATA_PROCESSED,
     DATA_TILES,
-    DEFAULT_COUNTRY,
-    MAX_COORDINATE_UNCERTAINTY,
+    DATA_RAW,
 )
 
 
@@ -30,7 +29,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--input",
-        default=None,
+        default=str(DATA_RAW),
         help="Path to the raw GBIF TSV input file",
     )
 
@@ -48,7 +47,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--cell-scores-output",
-        default=str(DATA_PROCESSED / "cell_scores.parquet"),
+        default=str(DATA_PROCESSED),
         help="Step 3 output parquet path",
     )
 
@@ -73,21 +72,8 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument(
         "--tiles-output",
-        default=str(DATA_TILES / "rare_species_cells.pmtiles"),
+        default=str(DATA_TILES),
         help="Step 4 output PMTiles path",
-    )
-
-    parser.add_argument(
-        "--country",
-        default=DEFAULT_COUNTRY,
-        help=f"Country filter for Step 1 (default: {DEFAULT_COUNTRY})",
-    )
-
-    parser.add_argument(
-        "--uncertainty",
-        type=float,
-        default=MAX_COORDINATE_UNCERTAINTY,
-        help="Maximum coordinate uncertainty in meters for Step 1",
     )
 
     parser.add_argument(
@@ -213,10 +199,6 @@ def build_steps(args: argparse.Namespace) -> dict[int, tuple[str, list[str]]]:
         str(input_path) if input_path is not None else "",
         "--output",
         str(observations_output),
-        "--country",
-        args.country,
-        "--uncertainty",
-        str(args.uncertainty),
         "--encoding",
         args.encoding,
     ]

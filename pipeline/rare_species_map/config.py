@@ -21,5 +21,3 @@ H3_ZOOM_RANGES = [[0, 4], [4, 5], [5, 7], [7, 8], [8, 12]]
 # H3_ZOOM_RANGES = [[8, 12]]
 
 
-DEFAULT_COUNTRY = "IT"
-

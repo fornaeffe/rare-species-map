@@ -14,7 +14,6 @@ from rare_species_map.config import (
     DATA_RAW,
     DATA_PROCESSED,
     H3_VISUALIZATION_RESOLUTIONS,
-    DEFAULT_COUNTRY,
 )
 from rare_species_map.duckdb_utils import get_connection
 
@@ -91,12 +90,6 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-        "--country",
-        default=DEFAULT_COUNTRY,
-        help=f"Country filter (default: {DEFAULT_COUNTRY})",
-    )
-
-    parser.add_argument(
         "--encoding",
         default="auto",
         help="Input text encoding (default: auto)",
@@ -135,7 +128,6 @@ def build_h3_columns(resolutions: list[int]) -> str:
 def build_query(
     input_path: Path,
     output_path: Path,
-    country: str,
     encoding: str,
 ) -> str:
     
@@ -154,8 +146,6 @@ def build_query(
 
             taxonRank,
             recordedBy,
-
-            countryCode,
 
             {h3_columns}
 
@@ -182,8 +172,6 @@ def build_query(
 
             AND decimalLatitude BETWEEN -90 AND 90
             AND decimalLongitude BETWEEN -180 AND 180
-
-            AND countryCode = '{country}'
     )
     TO '{output_path.as_posix()}'
     (
@@ -239,7 +227,6 @@ def main() -> None:
     query = build_query(
         input_path=input_path,
         output_path=output_path,
-        country=args.country,
         encoding=encoding,
     )
 

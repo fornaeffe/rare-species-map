@@ -127,6 +127,7 @@ def build_feature(row: dict[str, Any], res: int) -> dict[str, Any]:
             "count_observations": int(row["count_observations"]),
             "count_observers": int(row["count_observers"]),
             "confidence_scores": float(row["confidence_scores"]),
+            "species_vs_observations": float(row["species_vs_observations"])
         },
     }
 
@@ -142,6 +143,7 @@ def export_geojsonseq(input_path: Path, output_path: Path, res: int, batch_size:
         count_observations,
         count_observers,
         confidence_scores,
+        species_vs_observations
     FROM parquet_scan('{input_path.as_posix()}')
     WHERE
         h3_res{res} IS NOT NULL
@@ -150,6 +152,7 @@ def export_geojsonseq(input_path: Path, output_path: Path, res: int, batch_size:
         AND count_observations IS NOT NULL
         AND count_observers IS NOT NULL
         AND confidence_scores IS NOT NULL
+        AND species_vs_observations IS NOT NULL
     """
 
     reader = con.execute(query).to_arrow_reader(batch_size=batch_size)

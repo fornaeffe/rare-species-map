@@ -253,7 +253,11 @@ button {
 }
 
 .legend-ramp.metric-count_species {
-  background: linear-gradient(90deg, #fff1cf, #f7c66a, #de7d46, #aa3c52, #572461);
+  background: linear-gradient(90deg, #f1ffcf, #c6f76a, #7dde46, #3caa52, #245726);
+}
+
+.legend-ramp.metric-species_vs_observations {
+  background: linear-gradient(90deg, #f1ffcf, #c6f76a, #7dde46, #3caa52, #245726);
 }
 
 .legend-ramp.metric-count_observers {

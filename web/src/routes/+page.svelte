@@ -13,6 +13,7 @@
   import { Protocol } from "pmtiles";
   import {
     Activity,
+    AlignVerticalJustifyCenter,
     Bird,
     Eye,
     Layers,
@@ -35,6 +36,7 @@
     | "rarity_zscore"
     | "count_observations"
     | "count_species"
+    | "species_vs_observations"
     | "count_observers";
 
   type CellProperties = {
@@ -44,6 +46,7 @@
     count_observers?: number;
     rarity_zscore?: number;
     confidence_scores?: number;
+    species_vs_observations?: number;
   };
 
   type LayerMouseEvent = MapMouseEvent & {
@@ -56,12 +59,14 @@
     count_species_quantiles: number[];
     count_observers_quantiles: number[];
     confidence_scores_quantiles: number[];
+    species_vs_observations_quantiles: number[];
   }
 
   const metricLabels: Record<Metric, string> = {
     rarity_zscore: "Rarity Z-score",
     count_observations: "Observations",
     count_species: "Species",
+    species_vs_observations: "Species vs Observations",
     count_observers: "Observers",
   };
 
@@ -70,6 +75,7 @@
     count_observations: Eye,
     count_species: Leaf,
     count_observers: User,
+    species_vs_observations: AlignVerticalJustifyCenter,
   };
 
   const initialCenter: LngLatLike = [12.45, 42.7];
@@ -366,7 +372,7 @@
 
       0,
       0,
-      10,
+      1,
       1 * (opacity / 100),
     ];
   }
@@ -416,6 +422,26 @@
       ];
     }
 
+    if (metric === "species_vs_observations") {
+
+
+      return [
+        "interpolate",
+        ["linear"],
+        ["coalesce", ["get", "species_vs_observations"], 0],
+        cellScoresSummary?.species_vs_observations_quantiles[0] ?? 0,
+        "#f1ffcf",
+        cellScoresSummary?.species_vs_observations_quantiles[1] ?? 0.25,
+        "#c6f76a",
+        cellScoresSummary?.species_vs_observations_quantiles[2] ?? 0.5,
+        "#7dde46",
+        cellScoresSummary?.species_vs_observations_quantiles[3] ?? 0.75,
+        "#3caa52",
+        cellScoresSummary?.species_vs_observations_quantiles[4] ?? 1,
+        "#245726",
+      ];
+    }
+
     if (metric === "count_observers") {
       const maxCount = cellScoresSummary?.count_observers_quantiles[2] ?? 500;
       return [
@@ -439,8 +465,8 @@
       "interpolate",
       ["linear"],
       ["coalesce", ["get", "rarity_zscore"], 0],
-      cellScoresSummary?.rarity_quantiles[0] ?? 0, '#2166ac',
-      cellScoresSummary?.rarity_quantiles[1] ?? 0, '#f7f7f7',
+      -(cellScoresSummary?.rarity_quantiles[3] ?? 0), '#2166ac',
+      0, '#f7f7f7',
       cellScoresSummary?.rarity_quantiles[3] ?? 0, '#b2182b'
     ];
   }
@@ -494,14 +520,14 @@
       ? "n/a"
       : new Intl.NumberFormat("en-US", {
           signDisplay: "exceptZero",
-          maximumFractionDigits: 3,
-        }).format(value);
+          maximumFractionDigits: 1,
+        }).format(value * 100) + " %";
   }
 
   function formatDecimal(value: number | undefined) {
     return value == null
       ? "n/a"
-      : new Intl.NumberFormat("en-US", { maximumFractionDigits: 5 }).format(
+      : new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(
           value,
         );
   }
@@ -597,6 +623,10 @@
         <div>
           <dt>Species</dt>
           <dd>{formatCount(selectedCell.count_species)}</dd>
+        </div>
+        <div>
+          <dt>Species vs Observations</dt>
+          <dd>{formatDecimal(selectedCell.species_vs_observations)}</dd>
         </div>
         <div>
           <dt>Observers</dt>

@@ -144,7 +144,8 @@
   }
 
   function getPmtilesUrl(resolution: number): string {
-    return asset(`/tiles/rare_species_cells${resolution}.pmtiles`);
+    // return asset(`/tiles/rare_species_cells${resolution}.pmtiles`);
+    return `http://127.0.0.1:8787/releases/download/v0.1.0-alpha/rare_species_cells${resolution}.pmtiles`
   }
 
   function getCurrentResolution(): number {

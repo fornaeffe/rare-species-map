@@ -93,8 +93,8 @@ button {
 }
 
 .status-pill {
-  display: flex;
-  flex: 0 1 auto;
+  display: grid;
+  grid-template-columns: auto max-content;
   align-items: center;
   min-height: 34px;
   max-width: min(46vw, 340px);
@@ -111,6 +111,7 @@ button {
   border-radius: 8px;
   box-shadow: 0 14px 38px rgba(10, 20, 16, 0.18);
   backdrop-filter: blur(16px);
+  pointer-events: auto;
 }
 
 .status-pill.error {
@@ -131,6 +132,10 @@ button {
   box-shadow: 0 0 0 4px rgba(199, 67, 77, 0.15);
 }
 
+.tile-source-select {
+  grid-column: 1 / span 2;
+}
+
 .control-panel,
 .cell-card {
   width: min(360px, calc(100vw - 40px));
@@ -143,14 +148,14 @@ button {
 }
 
 .control-panel {
-  left: 20px;
-  bottom: 74px;
+  left: 14px;
+  bottom: 45px;
   padding: 14px;
 }
 
 .cell-card {
   right: 20px;
-  bottom: 74px;
+  bottom: 45px;
   padding: 15px;
 }
 

@@ -40,7 +40,6 @@
     | "rarity_zscore"
     | "count_observations"
     | "count_species"
-    | "species_vs_observations"
     | "count_observers";
 
   type CellProperties = {
@@ -50,7 +49,6 @@
     count_observers?: number;
     rarity_zscore?: number;
     confidence_scores?: number;
-    species_vs_observations?: number;
   };
 
   type LayerMouseEvent = MapMouseEvent & {
@@ -70,7 +68,6 @@
     rarity_zscore: "Rarity Z-score",
     count_observations: "Observations",
     count_species: "Species",
-    species_vs_observations: "Species vs Observations",
     count_observers: "Observers",
   };
 
@@ -79,7 +76,6 @@
     count_observations: Eye,
     count_species: Leaf,
     count_observers: User,
-    species_vs_observations: AlignVerticalJustifyCenter,
   };
 
   const initialCenter: LngLatLike = [12.45, 42.7];
@@ -92,13 +88,12 @@
   let tileError = $state("");
   let metric = $state<Metric>("rarity_zscore");
   let opacity = $state(100);
-  let scoreFloor = $state(-1.5);
   let selectedCell = $state<CellProperties | undefined>();
   let hoveredH3 = $state("");
   let currentResolution = $state(4);
   let cellScoresSummary = $state<CellScoresSummary | undefined>();
   let tileSource = $state<'production' | 'local-wrangler' | 'local-assets'>(
-    dev ? 'local-wrangler' : 'production'
+    dev ? 'local-assets' : 'production'
   );
 
   // Cache dei summary caricati
@@ -282,10 +277,6 @@
     });
 
     map.addControl(
-      new maplibregl.NavigationControl({ showCompass: false }),
-      "bottom-right",
-    );
-    map.addControl(
       new maplibregl.AttributionControl({ compact: true }),
       "bottom-left",
     );
@@ -316,11 +307,11 @@
     map.on("zoomend", handleZoomChange);
     map.on("error", (event) => {
       const message = event.error?.message ?? "";
-      if (
-        message.includes("rare_species_cells") ||
-        message.includes("pmtiles")
-      ) {
-        tileError = `PMTiles non trovati o non leggibili (res ${currentResolution})`;
+      tileError = `Map error: ${message}`
+    });
+    map.on("sourcedata", (event) => {
+      if (event.sourceId?.startsWith("rare-species-source") && event.isSourceLoaded) {
+        tileError = "";
       }
     });
 
@@ -462,26 +453,6 @@
       ];
     }
 
-    if (metric === "species_vs_observations") {
-
-
-      return [
-        "interpolate",
-        ["linear"],
-        ["coalesce", ["get", "species_vs_observations"], 0],
-        cellScoresSummary?.species_vs_observations_quantiles[0] ?? 0,
-        "#f1ffcf",
-        cellScoresSummary?.species_vs_observations_quantiles[1] ?? 0.25,
-        "#c6f76a",
-        cellScoresSummary?.species_vs_observations_quantiles[2] ?? 0.5,
-        "#7dde46",
-        cellScoresSummary?.species_vs_observations_quantiles[3] ?? 0.75,
-        "#3caa52",
-        cellScoresSummary?.species_vs_observations_quantiles[4] ?? 1,
-        "#245726",
-      ];
-    }
-
     if (metric === "count_observers") {
       const maxCount = cellScoresSummary?.count_observers_quantiles[2] ?? 500;
       return [
@@ -582,11 +553,25 @@
 
   <section class="topbar" aria-label="Map overview">
     <div>
+      <div class="eyebrow">Where observers have seen their rarest species</div>
       <h1>Rare Species Map</h1>
     </div>
     <div class="status-pill" class:error={tileError}>
       <span class="status-dot"></span>
       {tileError ? "Tile source issue" : "PMTiles vector source"}
+      {#if dev}
+        <div class="tile-source-select">
+          <select
+            id="tile-source-select"
+            bind:value={tileSource}
+            style="width: 100%; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; border: 1px solid var(--color-border); font-size: 0.875rem;"
+          >
+            <option value="production">Production Proxy</option>
+            <option value="local-wrangler">Local Wrangler (8787)</option>
+            <option value="local-assets">Local Assets</option>
+          </select>
+        </div>
+      {/if}
     </div>
   </section>
 
@@ -627,22 +612,7 @@
       </label>
     </div>
 
-    {#if dev}
-      <div class="panel-section">
-        <label for="tile-source-select">
-          <span>Tile Source (dev)</span>
-        </label>
-        <select
-          id="tile-source-select"
-          bind:value={tileSource}
-          style="width: 100%; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; border: 1px solid var(--color-border); font-size: 0.875rem;"
-        >
-          <option value="production">Production Proxy</option>
-          <option value="local-wrangler">Local Wrangler (8787)</option>
-          <option value="local-assets">Local Assets</option>
-        </select>
-      </div>
-    {/if}
+    
 
     <div class="legend" aria-label="Legend">
       <div class="legend-ramp metric-{metric}"></div>
@@ -680,10 +650,6 @@
         <div>
           <dt>Species</dt>
           <dd>{formatCount(selectedCell.count_species)}</dd>
-        </div>
-        <div>
-          <dt>Species vs Observations</dt>
-          <dd>{formatDecimal(selectedCell.species_vs_observations)}</dd>
         </div>
         <div>
           <dt>Observers</dt>
@@ -733,8 +699,4 @@
       <RefreshCw size={17} />
     </button>
   </nav>
-
-  <footer class="science-note">
-    Areas where an observer should expect to see rarer species than his or her average.
-  </footer>
 </main>

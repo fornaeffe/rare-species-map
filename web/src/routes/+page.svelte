@@ -19,6 +19,7 @@
     ChevronDown,
     ChevronUp,
     Eye,
+    Github,
     Layers,
     Leaf,
     LocateFixed,
@@ -649,6 +650,11 @@
     {#if tileError}
       <p class="tile-error">{tileError}</p>
     {/if}
+
+    <a class="github-link" href="https://github.com/fornaeffe/rare-species-map" target="_blank" rel="noopener noreferrer" title="View on GitHub">
+      <img src={asset("github.svg")} alt="GitHub" height="16"/>
+      <span>More info on GitHub</span>
+    </a>
   </aside>
 
   <aside class="cell-card" aria-label="Selected H3 cell">
@@ -700,6 +706,8 @@
     {:else}
       <p class="muted">No cell selected</p>
     {/if}
+
+    
   </aside>
 
   <nav class="map-actions" aria-label="Map navigation">

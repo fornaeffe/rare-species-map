@@ -183,7 +183,8 @@ button {
 .control-panel.collapsed .segmented-control,
 .control-panel.collapsed .panel-section:not(:first-child),
 .control-panel.collapsed .legend,
-.control-panel.collapsed .tile-error {
+.control-panel.collapsed .tile-error,
+.control-panel.collapsed .github-link {
   display: none;
 }
 
@@ -385,6 +386,25 @@ button {
   color: #617169;
   font-size: 0.9rem;
   font-weight: 700;
+}
+
+.github-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(20, 33, 28, 0.12);
+  color: #287756;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.github-link:hover {
+  color: #1f5a40;
+  text-decoration: underline;
 }
 
 .map-actions {

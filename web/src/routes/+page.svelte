@@ -476,13 +476,18 @@
       ];
     }
 
+    const q3 = cellScoresSummary?.rarity_quantiles[3] ?? 0;
     return [
       "interpolate",
       ["linear"],
       ["coalesce", ["get", "rarity_zscore"], 0],
-      -(cellScoresSummary?.rarity_quantiles[3] ?? 0), '#2166ac',
+      -q3, '#053061',
+      -q3 * 0.67, '#4575b4',
+      -q3 * 0.33, '#abd9e9',
       0, '#f7f7f7',
-      cellScoresSummary?.rarity_quantiles[3] ?? 0, '#b2182b'
+      q3 * 0.33, '#fdae61',
+      q3 * 0.67, '#d73027',
+      q3, '#67001f'
     ];
   }
 

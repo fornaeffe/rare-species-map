@@ -308,7 +308,7 @@ button {
 }
 
 .legend-ramp.metric-rarity_zscore {
-  background: linear-gradient(90deg, #2166ac, #f7f7f7, #b2182b);
+  background: linear-gradient(90deg, #053061, #4575b4, #abd9e9, #f7f7f7, #fdae61, #d73027, #67001f);
 }
 
 .legend-ramp.metric-count_observations {

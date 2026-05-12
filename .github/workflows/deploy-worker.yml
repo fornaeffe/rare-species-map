@@ -3,7 +3,10 @@ name: Deploy Worker
 on:
   push:
     branches: [main]
-    paths: ["pmtiles-proxy/**"]
+    paths: [
+      "pmtiles-proxy/**",
+      ".github/workflows/deploy-worker.yml"
+    ]
 
 jobs:
   deploy:

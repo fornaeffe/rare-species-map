@@ -652,7 +652,7 @@
     {/if}
 
     <a class="github-link" href="https://github.com/fornaeffe/rare-species-map" target="_blank" rel="noopener noreferrer" title="View on GitHub">
-      <img src={asset("github.svg")} alt="GitHub" height="16"/>
+      <img src={asset("/github.svg")} alt="GitHub" height="16"/>
       <span>More info on GitHub</span>
     </a>
   </aside>

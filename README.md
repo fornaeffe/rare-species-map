@@ -143,6 +143,12 @@ The model is specifically designed to reduce:
 
 while preserving geographically meaningful ecological signals.
 
+# Licenses
+
+All the code inside this repo is released under GPL-3.0 license.
+
+Generated pmtiles (available in Releases) are under CC BY-NC 4.0 license.
+
 # Data source
 
 - GBIF.org (7 May 2026) GBIF Occurrence Download https://doi.org/10.15468/dl.v2j3ye

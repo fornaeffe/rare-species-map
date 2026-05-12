@@ -16,6 +16,8 @@
     Activity,
     AlignVerticalJustifyCenter,
     Bird,
+    ChevronDown,
+    ChevronUp,
     Eye,
     Layers,
     Leaf,
@@ -25,6 +27,7 @@
     RefreshCw,
     Star,
     User,
+    X,
   } from "lucide-svelte";
 
   const TILE_LAYER = "rare_species_cells";
@@ -95,6 +98,7 @@
   let tileSource = $state<'production' | 'local-wrangler' | 'local-assets'>(
     dev ? 'local-assets' : 'production'
   );
+  let controlPanelOpen = $state(true);
 
   // Cache dei summary caricati
   const summariesByResolution = new Map<number, CellScoresSummary>();
@@ -575,11 +579,26 @@
     </div>
   </section>
 
-  <aside class="control-panel" aria-label="Map controls">
+  <aside class="control-panel" class:collapsed={!controlPanelOpen} aria-label="Map controls">
     <div class="panel-section">
       <div class="section-title">
-        <Layers size={16} />
-        <span>Metric</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <Layers size={16} />
+          <span>Metric</span>
+        </div>
+        <button
+          type="button"
+          class="panel-toggle"
+          onclick={() => (controlPanelOpen = !controlPanelOpen)}
+          aria-label={controlPanelOpen ? "Close controls" : "Open controls"}
+          title={controlPanelOpen ? "Close controls" : "Open controls"}
+        >
+          {#if controlPanelOpen}
+            <ChevronDown size={18} />
+          {:else}
+            <ChevronUp size={18} />
+          {/if}
+        </button>
       </div>
 
       <div class="segmented-control" role="group" aria-label="Visible metric">
@@ -629,8 +648,21 @@
 
   <aside class="cell-card" aria-label="Selected H3 cell">
     <div class="section-title">
-      <Activity size={16} />
-      <span>Selected Cell</span>
+      <div style="display: flex; align-items: center; gap: 0.5rem;">
+        <Activity size={16} />
+        <span>Selected Cell</span>
+      </div>
+      {#if selectedCell}
+        <button
+          type="button"
+          class="close-button"
+          onclick={() => (selectedCell = undefined)}
+          aria-label="Deselect cell"
+          title="Deselect cell"
+        >
+          <X size={16} />
+        </button>
+      {/if}
     </div>
 
     {#if selectedCell}

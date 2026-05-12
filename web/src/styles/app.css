@@ -153,10 +153,64 @@ button {
   padding: 14px;
 }
 
+.panel-toggle {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  background: rgba(48, 138, 99, 0.1);
+  border: 1px solid rgba(48, 138, 99, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  color: #287756;
+  transition: all 0.2s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.panel-toggle:hover {
+  background: rgba(48, 138, 99, 0.2);
+  border-color: rgba(48, 138, 99, 0.4);
+  color: #1f5a40;
+}
+
+.control-panel.collapsed .segmented-control,
+.control-panel.collapsed .panel-section:not(:first-child),
+.control-panel.collapsed .legend,
+.control-panel.collapsed .tile-error {
+  display: none;
+}
+
 .cell-card {
   right: 20px;
   bottom: 45px;
   padding: 15px;
+}
+
+.cell-card .section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.close-button {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  background: rgba(132, 40, 48, 0.1);
+  border: 1px solid rgba(132, 40, 48, 0.2);
+  border-radius: 5px;
+  cursor: pointer;
+  color: #842830;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.close-button:hover {
+  background: rgba(132, 40, 48, 0.2);
+  border-color: rgba(132, 40, 48, 0.4);
+  color: #5a1b22;
 }
 
 .panel-section + .panel-section {
@@ -174,6 +228,10 @@ button {
   font-size: 0.82rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.control-panel .section-title {
+  justify-content: space-between;
 }
 
 .segmented-control {

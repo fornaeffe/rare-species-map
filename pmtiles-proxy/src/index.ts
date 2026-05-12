@@ -22,6 +22,8 @@ export default {
     }
     // Expose Range-related headers to the browser
     newHeaders.append("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges, ETag");
+    // Cache
+    newHeaders.append("Cache-Control", "public, max-age=86400, immutable");
 
 	// Handle CORS preflight
     if (request.method === "OPTIONS") {

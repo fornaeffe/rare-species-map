@@ -27,7 +27,10 @@
   } from "lucide-svelte";
 
   const TILE_LAYER = "rare_species_cells";
-  const SOURCE_ID = "rare-species-source";
+  const RESOLUTIONS = [3, 4, 5, 6, 7] as const;
+  // Una source per risoluzione: vengono tutte registrate al load e mai rimosse,
+  // così MapLibre mantiene la tile cache per ogni livello per tutta la sessione.
+  const sourceId = (res: number) => `rare-species-source-${res}`;
   const FILL_LAYER_ID = "rare-species-fill";
   const LINE_LAYER_ID = "rare-species-line";
   const HOVER_LINE_LAYER_ID = "rare-species-hover-line";
@@ -92,7 +95,6 @@
   let selectedCell = $state<CellProperties | undefined>();
   let hoveredH3 = $state("");
   let currentResolution = $state(4);
-  let currentPmtilesUrl = $state<string>("");
   let cellScoresSummary = $state<CellScoresSummary | undefined>();
 
   // Cache dei summary caricati
@@ -152,44 +154,33 @@
     return getResolutionForZoom(map?.getZoom() ?? 0);
   }
 
-  function getCurrentPmtilesUrl(): string {
-    return getPmtilesUrl(getCurrentResolution());
-  }
-
-
+  // Cambia solo i layer (non le source) quando la risoluzione cambia.
+  // Le source rimangono vive per tutta la sessione: MapLibre conserva la tile
+  // cache per ogni risoluzione e non riscarica tile già ottenute.
   function handleZoomChange() {
     const newResolution = getCurrentResolution();
-    const newUrl = getPmtilesUrl(newResolution);
 
-    if (newUrl !== currentPmtilesUrl) {
-      currentPmtilesUrl = newUrl;
+    if (newResolution !== currentResolution) {
       currentResolution = newResolution;
-
       cellScoresSummary = summariesByResolution.get(newResolution);
-
-      updateSource();
+      swapLayersToResolution(newResolution);
     }
   }
 
-  function updateSource() {
+  function swapLayersToResolution(resolution: number) {
     if (!map) return;
 
-    // Remove old layers
-    if (map.getLayer(FILL_LAYER_ID)) map.removeLayer(FILL_LAYER_ID);
-    if (map.getLayer(LINE_LAYER_ID)) map.removeLayer(LINE_LAYER_ID);
+    // Rimuovi solo i layer, MAI le source: la cache tile resta intatta.
     if (map.getLayer(HOVER_LINE_LAYER_ID)) map.removeLayer(HOVER_LINE_LAYER_ID);
+    if (map.getLayer(LINE_LAYER_ID)) map.removeLayer(LINE_LAYER_ID);
+    if (map.getLayer(FILL_LAYER_ID)) map.removeLayer(FILL_LAYER_ID);
 
-    // Remove old source
-    if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
-
-    // Add new source and layers
-    addCellLayers();
+    addCellLayers(resolution);
   }
 
   $effect(() => {
     metric;
     opacity;
-    scoreFloor;
     isMapReady;
 
     if (!isMapReady) return;
@@ -254,8 +245,22 @@
     );
 
     map.on("load", () => {
-      currentPmtilesUrl = getCurrentPmtilesUrl();
-      addCellLayers();
+      // Registra tutte le source una volta sola al load.
+      // Non vengono mai rimosse: MapLibre mantiene la tile cache per ognuna
+      // per l'intera sessione, evitando scaricamenti ridondanti.
+      for (const res of RESOLUTIONS) {
+        map!.addSource(sourceId(res), {
+          type: "vector",
+          url: `pmtiles://${getPmtilesUrl(res)}`,
+          promoteId: "h3",
+          attribution:
+            'GBIF.org (07 May 2026) GBIF Occurrence Download <a href="https://doi.org/10.15468/dl.v2j3ye">https://doi.org/10.15468/dl.v2j3ye</a>',
+        });
+      }
+
+      const initialResolution = getCurrentResolution();
+      currentResolution = initialResolution;
+      addCellLayers(initialResolution);
       isMapReady = true;
     });
 
@@ -269,7 +274,7 @@
         message.includes("rare_species_cells") ||
         message.includes("pmtiles")
       ) {
-        tileError = `PMTiles non trovati o non leggibili: ${currentPmtilesUrl}`;
+        tileError = `PMTiles non trovati o non leggibili (res ${currentResolution})`;
       }
     });
 
@@ -282,25 +287,13 @@
     };
   });
 
-  function pmtilesSourceUrl() {
-    return `pmtiles://${currentPmtilesUrl}`;
-  }
-
-  function addCellLayers() {
+  function addCellLayers(resolution: number) {
     if (!map) return;
-
-    map.addSource(SOURCE_ID, {
-      type: "vector",
-      url: pmtilesSourceUrl(),
-      promoteId: "h3",
-      attribution:
-              'GBIF.org (07 May 2026) GBIF Occurrence Download <a href="https://doi.org/10.15468/dl.v2j3ye">https://doi.org/10.15468/dl.v2j3ye</a>',
-    });
 
     map.addLayer({
       id: FILL_LAYER_ID,
       type: "fill",
-      source: SOURCE_ID,
+      source: sourceId(resolution),
       "source-layer": TILE_LAYER,
       paint: {
         "fill-color": metricColorExpression(),
@@ -311,7 +304,7 @@
     map.addLayer({
       id: LINE_LAYER_ID,
       type: "line",
-      source: SOURCE_ID,
+      source: sourceId(resolution),
       "source-layer": TILE_LAYER,
       paint: {
         "line-color": "rgba(25, 45, 37, 0.5)",
@@ -343,7 +336,7 @@
     map.addLayer({
       id: HOVER_LINE_LAYER_ID,
       type: "line",
-      source: SOURCE_ID,
+      source: sourceId(resolution),
       "source-layer": TILE_LAYER,
       filter: ["==", ["get", "h3"], ""],
       paint: {

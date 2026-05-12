@@ -237,10 +237,6 @@ def build_steps(args: argparse.Namespace) -> dict[int, tuple[str, list[str]]]:
         str(cell_scores_output),
         "--output",
         str(tiles_output),
-        "--min-zoom",
-        str(args.min_zoom),
-        "--max-zoom",
-        str(args.max_zoom),
         "--tile-format",
         args.tile_format,
     ]

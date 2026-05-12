@@ -9,6 +9,9 @@ web/build/
 web/.svelte-kit/
 web/dev-server*.log
 
+# Cloudflare Workers
+.wrangler/
+
 # Data
 data/raw/
 data/processed/

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { asset } from '$app/paths';
+  import { dev } from '$app/environment';
   import maplibregl, {
     type ExpressionSpecification,
     type FillLayerSpecification,
@@ -96,6 +97,9 @@
   let hoveredH3 = $state("");
   let currentResolution = $state(4);
   let cellScoresSummary = $state<CellScoresSummary | undefined>();
+  let tileSource = $state<'production' | 'local-wrangler' | 'local-assets'>(
+    dev ? 'local-wrangler' : 'production'
+  );
 
   // Cache dei summary caricati
   const summariesByResolution = new Map<number, CellScoresSummary>();
@@ -146,8 +150,14 @@
   }
 
   function getPmtilesUrl(resolution: number): string {
-    // return asset(`/tiles/rare_species_cells${resolution}.pmtiles`);
-    return `http://127.0.0.1:8787/releases/download/v0.1.0-alpha/rare_species_cells${resolution}.pmtiles`
+    switch (tileSource) {
+      case 'production':
+        return `https://pmtiles-proxy.fornaeffe.workers.dev/releases/latest/download/rare_species_cells${resolution}.pmtiles`;
+      case 'local-wrangler':
+        return `http://127.0.0.1:8787/releases/latest/download/rare_species_cells${resolution}.pmtiles`;
+      case 'local-assets':
+        return asset(`/tiles/rare_species_cells${resolution}.pmtiles`);
+    }
   }
 
   function getCurrentResolution(): number {
@@ -177,6 +187,42 @@
 
     addCellLayers(resolution);
   }
+
+  function recreatePmtilesSources() {
+    if (!map || !isMapReady) return;
+
+    // Rimuovi i layer
+    if (map.getLayer(HOVER_LINE_LAYER_ID)) map.removeLayer(HOVER_LINE_LAYER_ID);
+    if (map.getLayer(LINE_LAYER_ID)) map.removeLayer(LINE_LAYER_ID);
+    if (map.getLayer(FILL_LAYER_ID)) map.removeLayer(FILL_LAYER_ID);
+
+    // Rimuovi le vecchie sources
+    for (const res of RESOLUTIONS) {
+      if (map.getSource(sourceId(res))) {
+        map.removeSource(sourceId(res));
+      }
+    }
+
+    // Ricrea le sources con i nuovi URL
+    for (const res of RESOLUTIONS) {
+      map.addSource(sourceId(res), {
+        type: "vector",
+        url: `pmtiles://${getPmtilesUrl(res)}`,
+        promoteId: "h3",
+        attribution:
+          'GBIF.org (07 May 2026) GBIF Occurrence Download <a href="https://doi.org/10.15468/dl.v2j3ye">https://doi.org/10.15468/dl.v2j3ye</a>',
+      });
+    }
+
+    // Ricrea i layer con la risoluzione corrente
+    addCellLayers(currentResolution);
+  }
+
+  $effect(() => {
+    tileSource;
+    if (!isMapReady) return;
+    recreatePmtilesSources();
+  });
 
   $effect(() => {
     metric;
@@ -580,6 +626,23 @@
         />
       </label>
     </div>
+
+    {#if dev}
+      <div class="panel-section">
+        <label for="tile-source-select">
+          <span>Tile Source (dev)</span>
+        </label>
+        <select
+          id="tile-source-select"
+          bind:value={tileSource}
+          style="width: 100%; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; border: 1px solid var(--color-border); font-size: 0.875rem;"
+        >
+          <option value="production">Production Proxy</option>
+          <option value="local-wrangler">Local Wrangler (8787)</option>
+          <option value="local-assets">Local Assets</option>
+        </select>
+      </div>
+    {/if}
 
     <div class="legend" aria-label="Legend">
       <div class="legend-ramp metric-{metric}"></div>

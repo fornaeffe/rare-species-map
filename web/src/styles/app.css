@@ -8,6 +8,11 @@
   -webkit-font-smoothing: antialiased;
 }
 
+a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -90,6 +95,7 @@ button {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   text-shadow: 0 2px 12px rgba(7, 19, 14, 0.42);
+  pointer-events: auto;
 }
 
 .status-pill {

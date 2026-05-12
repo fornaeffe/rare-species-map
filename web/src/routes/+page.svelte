@@ -68,7 +68,7 @@
   }
 
   const metricLabels: Record<Metric, string> = {
-    rarity_zscore: "Rarity Z-score",
+    rarity_zscore: "Rarity score",
     count_observations: "Observations",
     count_species: "Species",
     count_observers: "Observers",
@@ -209,7 +209,7 @@
         url: `pmtiles://${getPmtilesUrl(res)}`,
         promoteId: "h3",
         attribution:
-          'GBIF.org (07 May 2026) GBIF Occurrence Download <a href="https://doi.org/10.15468/dl.v2j3ye">https://doi.org/10.15468/dl.v2j3ye</a>',
+          'Luca Fornasari, from GBIF data (<a href="https://doi.org/10.15468/dl.v2j3ye">https://doi.org/10.15468/dl.v2j3ye</a>)',
       });
     }
 
@@ -295,7 +295,7 @@
           url: `pmtiles://${getPmtilesUrl(res)}`,
           promoteId: "h3",
           attribution:
-            'GBIF.org (07 May 2026) GBIF Occurrence Download <a href="https://doi.org/10.15468/dl.v2j3ye">https://doi.org/10.15468/dl.v2j3ye</a>',
+            'Luca Fornasari, from GBIF data (<a href="https://doi.org/10.15468/dl.v2j3ye">https://doi.org/10.15468/dl.v2j3ye</a>)',
         });
       }
 
@@ -562,7 +562,7 @@
 
   <section class="topbar" aria-label="Map overview">
     <div>
-      <div class="eyebrow">Where observers have seen their rarest species</div>
+      <div class="eyebrow">Where <a href="https://www.inaturalist.org" target="_blank">iNaturalist</a> observers have seen their rarest species</div>
       <h1>Rare Species Map</h1>
     </div>
     <div class="status-pill" class:error={tileError}>
@@ -677,7 +677,7 @@
           <dd>{selectedCell.h3}</dd>
         </div>
         <div>
-          <dt>Rarity Z-score</dt>
+          <dt>Rarity score</dt>
           <dd>{formatScore(selectedCell.rarity_zscore)}</dd>
         </div>
         <div>

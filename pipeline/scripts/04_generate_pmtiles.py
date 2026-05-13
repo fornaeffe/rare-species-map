@@ -104,11 +104,49 @@ def parse_args() -> argparse.Namespace:
 
 
 def h3_boundary_geojson(h3_cell: int) -> list[list[list[float]]]:
+    """
+    Convert H3 cell boundary to GeoJSON coordinates with antimeridian handling.
+    
+    When an H3 cell crosses the antimeridian (±180°), we normalize the coordinates
+    so they remain "continuous" instead of jumping across the map. This prevents
+    MapLibre from rendering horizontal lines across the entire map.
+    
+    Instead of having coordinates like: [..., 179, -179, ...]
+    We normalize to: [..., 179, 181, ...] or [..., -179, -181, ...]
+    which MapLibre can render correctly with its coordinate wrapping.
+    """
     h3_string = h3.int_to_str(h3_cell)
     boundary = h3.cell_to_boundary(h3_string)
     ring = [[lng, lat] for lat, lng in boundary]
-    ring.append(ring[0])
-    return [ring]
+    
+    # Normalize coordinates to avoid antimeridian crossing artifacts
+    # We check each consecutive pair and if there's a jump > 180°, we adjust
+    # the second coordinate by ±360 to keep it continuous
+    normalized_ring = [ring[0]]
+    
+    for i in range(1, len(ring)):
+        prev_lng = normalized_ring[-1][0]
+        curr_lng = ring[i][0]
+        curr_lat = ring[i][1]
+        
+        # Check for antimeridian crossing (jump > 180°)
+        lng_diff = curr_lng - prev_lng
+        
+        if lng_diff > 180:
+            # Crossing from positive to negative: subtract 360 from current
+            normalized_ring.append([curr_lng - 360, curr_lat])
+        elif lng_diff < -180:
+            # Crossing from negative to positive: add 360 to current
+            normalized_ring.append([curr_lng + 360, curr_lat])
+        else:
+            # No crossing, keep as is
+            normalized_ring.append([curr_lng, curr_lat])
+    
+    # Close the ring with the first point
+    normalized_ring.append(normalized_ring[0])
+    
+    # Return as a list containing a single polygon
+    return [normalized_ring]
 
 
 def build_feature(row: dict[str, Any], res: int) -> dict[str, Any]:

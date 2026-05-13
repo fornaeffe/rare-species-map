@@ -82,7 +82,7 @@
     count_observers: User,
   };
 
-  const initialCenter: LngLatLike = [12.45, 42.7];
+  const initialCenter: LngLatLike = [0, 0];
 
   let mapContainer: HTMLDivElement;
   let map = $state<maplibregl.Map | undefined>();
@@ -94,7 +94,7 @@
   let opacity = $state(100);
   let selectedCell = $state<CellProperties | undefined>();
   let hoveredH3 = $state("");
-  let currentResolution = $state(4);
+  let currentResolution = $state(3);
   let cellScoresSummary = $state<CellScoresSummary | undefined>();
   let tileSource = $state<'production' | 'local-wrangler' | 'local-assets'>(
     dev ? 'local-assets' : 'production'
@@ -126,11 +126,11 @@
       })
     );
 
-    // Inizializza lo stato con il livello 4
-    const initialSummary = summariesByResolution.get(4);
+    // Inizializza lo stato con il livello 3
+    const initialSummary = summariesByResolution.get(3);
 
     if (initialSummary === undefined) {
-      throw new Error('Missing summary for resolution 4');
+      throw new Error('Missing summary for resolution 3');
     }
 
     cellScoresSummary = initialSummary;
@@ -241,7 +241,7 @@
     const options: MapOptions = {
       container: mapContainer,
       center: initialCenter,
-      zoom: 4.8,
+      zoom: 2,
       minZoom: 2,
       maxZoom: 12,
       attributionControl: false,

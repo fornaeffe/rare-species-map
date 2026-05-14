@@ -388,16 +388,17 @@ button {
   font-weight: 700;
 }
 
+.info-section {
+  color: #287756;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
 .github-link {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 15px;
-  padding-top: 12px;
-  border-top: 1px solid rgba(20, 33, 28, 0.12);
-  color: #287756;
-  font-size: 0.8rem;
-  font-weight: 700;
+  margin-top: 10px;
   text-decoration: none;
   transition: color 0.2s ease;
 }
@@ -507,6 +508,122 @@ button {
 
 :global(.cell-popup .maplibregl-popup-tip) {
   border-top-color: rgba(255, 255, 251, 0.95);
+}
+
+.explanation-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #287756;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.explanation-button:hover {
+  color: #1f5a40;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: rgba(7, 19, 14, 0.4);
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-content {
+  width: min(550px, calc(100vw - 32px));
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: rgba(250, 251, 246, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 10px;
+  box-shadow: 0 32px 64px rgba(10, 20, 16, 0.28);
+  backdrop-filter: blur(20px);
+  animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px;
+  border-bottom: 1px solid rgba(20, 33, 28, 0.1);
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: #14211c;
+  font-size: 1.3rem;
+  font-weight: 800;
+  line-height: 1.2;
+  flex: 1;
+}
+
+.modal-close {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  background: rgba(48, 138, 99, 0.1);
+  border: 1px solid rgba(48, 138, 99, 0.2);
+  border-radius: 6px;
+  cursor: pointer;
+  color: #287756;
+  transition: all 0.2s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.modal-close:hover {
+  background: rgba(48, 138, 99, 0.2);
+  border-color: rgba(48, 138, 99, 0.4);
+  color: #1f5a40;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  color: #3a4943;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.modal-body p {
+  margin: 0 0 14px;
+}
+
+.modal-body p:last-child {
+  margin-bottom: 0;
 }
 
 @media (max-width: 760px) {

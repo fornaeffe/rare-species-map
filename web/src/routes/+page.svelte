@@ -105,6 +105,7 @@
     dev ? "local-assets" : "production",
   );
   let controlPanelOpen = $state(true);
+  let showExplanationModal = $state(false);
 
   // Cache dei summary caricati
   const summariesByResolution = new Map<number, CellScoresSummary>();
@@ -708,16 +709,27 @@
       </label>
     </div>
 
-    <a
-      class="github-link"
-      href="https://github.com/fornaeffe/rare-species-map"
-      target="_blank"
-      rel="noopener noreferrer"
-      title="View on GitHub"
-    >
-      <img src={asset("/github.svg")} alt="GitHub" height="16" />
-      <span>More info on GitHub</span>
-    </a>
+    <div class="panel-section info-section">
+      <button
+        type="button"
+        class="explanation-button"
+        onclick={() => (showExplanationModal = true)}
+        title="Learn why cells disappear when zooming in"
+      >
+        Why cells disappear when zooming in?
+      </button>
+
+      <a
+        class="github-link"
+        href="https://github.com/fornaeffe/rare-species-map"
+        target="_blank"
+        rel="noopener noreferrer"
+        title="View on GitHub"
+      >
+        <img src={asset("/github.svg")} alt="GitHub" height="16" />
+        <span>More info on GitHub</span>
+      </a>
+    </div>
   </aside>
 
   <aside class="cell-card" aria-label="Selected H3 cell">
@@ -827,4 +839,53 @@
       <RefreshCw size={17} />
     </button>
   </nav>
+
+  {#if showExplanationModal}
+    <div
+      class="modal-overlay"
+      onclick={() => (showExplanationModal = false)}
+      role="presentation"
+    >
+      <div
+        class="modal-content"
+        onclick={(e) => e.stopPropagation()}
+        role="presentation"
+      >
+        <div class="modal-header">
+          <h2>Why cells disappear when zooming in</h2>
+          <button
+            type="button"
+            class="modal-close"
+            onclick={() => (showExplanationModal = false)}
+            aria-label="Close modal"
+            title="Close"
+          >
+            <X size={20} />
+          </button>
+        </div>
+        <div class="modal-body">
+          <p>
+            As you zoom in on the map, you're viewing higher-resolution H3
+            cells—smaller geographic areas with finer detail.
+          </p>
+          <p>
+            At lower zoom levels, a larger cell may contain many observations
+            across a wide area, giving it enough data to calculate a confident
+            rarity score and display it as a brightly colored cell.
+          </p>
+          <p>
+            However, when you zoom in, that same area is divided into many
+            smaller cells. Each smaller cell might have fewer observations. If a
+            cell doesn't have enough observations, it will be very faint — 
+            even though its parent cell at a lower zoom level was clearly visible.
+          </p>
+          <p>
+            This fading ensures that only cells with sufficient observational
+            data are shown prominently, preventing misleading conclusions from sparse or
+            incomplete data.
+          </p>
+        </div>
+      </div>
+    </div>
+  {/if}
 </main>

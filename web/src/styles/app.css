@@ -407,6 +407,29 @@ button {
   text-decoration: underline;
 }
 
+.inaturalist-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px;
+  color: #287756;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-decoration: none;
+  background: rgba(48, 138, 99, 0.08);
+  border: 1px solid rgba(48, 138, 99, 0.2);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.inaturalist-link:hover {
+  color: #1f5a40;
+  background: rgba(48, 138, 99, 0.15);
+  border-color: rgba(48, 138, 99, 0.3);
+  text-decoration: none;
+}
+
 .map-actions {
   right: 20px;
   top: 112px;

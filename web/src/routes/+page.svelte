@@ -19,6 +19,7 @@
     ChevronDown,
     ChevronUp,
     Eye,
+    ExternalLink,
     Github,
     Layers,
     Leaf,
@@ -53,6 +54,10 @@
     count_observers?: number;
     rarity_zscore?: number;
     confidence_scores?: number;
+  };
+
+  type SelectedCell = CellProperties & {
+    geometry?: GeoJSON.Geometry;
   };
 
   type LayerMouseEvent = MapMouseEvent & {
@@ -92,7 +97,7 @@
   let tileError = $state("");
   let metric = $state<Metric>("rarity_zscore");
   let opacity = $state(100);
-  let selectedCell = $state<CellProperties | undefined>();
+  let selectedCell = $state<SelectedCell | undefined>();
   let hoveredH3 = $state("");
   let currentResolution = $state(3);
   let cellScoresSummary = $state<CellScoresSummary | undefined>();
@@ -521,7 +526,13 @@
 
   function handleCellClick(event: LayerMouseEvent) {
     if (!event.features?.length) return;
-    selectedCell = event.features[0].properties as CellProperties;
+
+    const feature = event.features[0];
+
+    selectedCell = {
+      ...(feature.properties as CellProperties),
+      geometry: feature.geometry,
+    };
   }
 
   function resetView() {
@@ -551,6 +562,39 @@
       : new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(
           value,
         );
+  }
+
+  function generateINaturalistUrl(
+    geometry: GeoJSON.Geometry | undefined,
+  ): string {
+    if (!geometry || geometry.type !== "Polygon") {
+      return "";
+    }
+
+    try {
+      const ring = geometry.coordinates[0];
+
+      const lats = ring.map((coord) => coord[1]);
+      const lngs = ring.map((coord) => coord[0]);
+
+      const swlat = Math.min(...lats);
+      const nelat = Math.max(...lats);
+      const swlng = Math.min(...lngs);
+      const nelng = Math.max(...lngs);
+
+      const params = new URLSearchParams({
+        nelat: nelat.toString(),
+        nelng: nelng.toString(),
+        swlat: swlat.toString(),
+        swlng: swlng.toString(),
+        subview: "map",
+        quality_grade: "research",
+      });
+
+      return `https://www.inaturalist.org/observations?${params.toString()}`;
+    } catch {
+      return "";
+    }
   }
 </script>
 
@@ -703,6 +747,22 @@
           <dd>{formatCount(selectedCell.confidence_scores)}</dd>
         </div>
       </dl>
+      
+      {#if selectedCell.h3}
+        {@const inaturalistUrl = generateINaturalistUrl(selectedCell.geometry)}
+        {#if inaturalistUrl}
+          <a
+            class="inaturalist-link"
+            href={inaturalistUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="View observations on iNaturalist"
+          >
+            <ExternalLink size={14} />
+            <span>View on iNaturalist</span>
+          </a>
+        {/if}
+      {/if}
     {:else}
       <p class="muted">No cell selected</p>
     {/if}

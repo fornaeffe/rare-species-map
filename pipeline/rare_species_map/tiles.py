@@ -72,6 +72,24 @@ def h3_boundary_geojson(h3_cell: int) -> list[list[list[float]]]:
 def build_feature(row: Mapping[str, Any], resolution: int) -> dict[str, Any]:
     h3_cell = int(row[f"h3_res{resolution}"])
 
+    return build_feature_from_values(
+        h3_cell=h3_cell,
+        rarity_zscore=float(row["rarity_zscore"]),
+        count_species=int(row["count_species"]),
+        count_observations=int(row["count_observations"]),
+        count_observers=int(row["count_observers"]),
+        confidence_scores=float(row["confidence_scores"]),
+    )
+
+
+def build_feature_from_values(
+    h3_cell: int,
+    rarity_zscore: float,
+    count_species: int,
+    count_observations: int,
+    count_observers: int,
+    confidence_scores: float,
+) -> dict[str, Any]:
     return {
         "type": "Feature",
         "geometry": {
@@ -80,11 +98,11 @@ def build_feature(row: Mapping[str, Any], resolution: int) -> dict[str, Any]:
         },
         "properties": {
             "h3": h3.int_to_str(h3_cell),
-            "rarity_zscore": float(row["rarity_zscore"]),
-            "count_species": int(row["count_species"]),
-            "count_observations": int(row["count_observations"]),
-            "count_observers": int(row["count_observers"]),
-            "confidence_scores": float(row["confidence_scores"]),
+            "rarity_zscore": rarity_zscore,
+            "count_species": count_species,
+            "count_observations": count_observations,
+            "count_observers": count_observers,
+            "confidence_scores": confidence_scores,
         },
     }
 
@@ -121,8 +139,31 @@ def export_geojsonseq(
         n_features = 0
         with output_path.open("w", encoding="utf-8", newline="\n") as file:
             for batch in reader:
-                for row in batch.to_pylist():
-                    feature = build_feature(row, resolution)
+                h3_cells = batch.column(f"h3_res{resolution}").to_pylist()
+                rarity_zscores = batch.column("rarity_zscore").to_pylist()
+                count_species = batch.column("count_species").to_pylist()
+                count_observations = batch.column("count_observations").to_pylist()
+                count_observers = batch.column("count_observers").to_pylist()
+                confidence_scores = batch.column("confidence_scores").to_pylist()
+
+                rows = zip(
+                    h3_cells,
+                    rarity_zscores,
+                    count_species,
+                    count_observations,
+                    count_observers,
+                    confidence_scores,
+                    strict=True,
+                )
+                for row in rows:
+                    feature = build_feature_from_values(
+                        h3_cell=int(row[0]),
+                        rarity_zscore=float(row[1]),
+                        count_species=int(row[2]),
+                        count_observations=int(row[3]),
+                        count_observers=int(row[4]),
+                        confidence_scores=float(row[5]),
+                    )
                     file.write(json.dumps(feature, separators=(",", ":")))
                     file.write("\n")
                     n_features += 1

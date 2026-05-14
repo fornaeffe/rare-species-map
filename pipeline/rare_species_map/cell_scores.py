@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
+import duckdb
 import h3
 import numpy as np
 import numpy.typing as npt
@@ -175,6 +176,60 @@ def build_aggregation_query(
     """
 
 
+def build_cell_scores_copy_query(
+    resolution: int,
+    observations_path: Path,
+    species_occupancy_path: Path,
+    output_path: Path,
+) -> str:
+    return f"""
+    COPY (
+        SELECT
+            h3_res{resolution}::UBIGINT AS h3_res{resolution},
+            rarity_zscore::DOUBLE AS rarity_zscore,
+            count_species::UBIGINT AS count_species,
+            count_observations::UBIGINT AS count_observations,
+            count_observers::UBIGINT AS count_observers,
+            confidence_scores::DOUBLE AS confidence_scores
+        FROM (
+            {build_aggregation_query(
+                resolution=resolution,
+                observations_path=observations_path,
+                species_occupancy_path=species_occupancy_path,
+            )}
+        )
+    )
+    TO '{output_path.as_posix()}'
+    (
+        FORMAT PARQUET,
+        COMPRESSION ZSTD,
+        ROW_GROUP_SIZE 100000
+    )
+    """
+
+
+def write_cell_scores_to_parquet(
+    con: duckdb.DuckDBPyConnection,
+    resolution: int,
+    observations_path: Path,
+    species_occupancy_path: Path,
+    output_dir: Path,
+) -> tuple[Path, float]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"cell_scores{resolution}.parquet"
+
+    start = time.monotonic()
+    con.execute(
+        build_cell_scores_copy_query(
+            resolution=resolution,
+            observations_path=observations_path,
+            species_occupancy_path=species_occupancy_path,
+            output_path=output_path,
+        )
+    )
+    return output_path, time.monotonic() - start
+
+
 def fetch_cell_data(
     resolution: int,
     observations_path: Path,
@@ -288,6 +343,53 @@ def summarize_cell_scores(cell_scores: CellScoreArrays) -> CellScoreQuantiles:
     )
 
 
+def get_cell_score_summary(output_path: Path) -> CellScoreQuantiles:
+    con = get_connection()
+    try:
+        row = con.execute(
+            f"""
+            SELECT
+                quantile_cont(rarity_zscore, [0.025, 0.5, 0.75, 0.975]),
+                quantile_cont(count_observations, [0.025, 0.5, 0.975]),
+                quantile_cont(count_species, [0.025, 0.5, 0.975]),
+                quantile_cont(count_observers, [0.025, 0.5, 0.975]),
+                quantile_cont(confidence_scores, [0.025, 0.5, 0.975])
+            FROM parquet_scan('{output_path.resolve().as_posix()}')
+            """
+        ).fetchone()
+    finally:
+        con.close()
+
+    if row is None:
+        raise ValueError(f"No cell scores found in {output_path}")
+
+    return CellScoreQuantiles(
+        rarity_quantiles=[float(value) for value in row[0]],
+        count_observations_quantiles=[float(value) for value in row[1]],
+        count_species_quantiles=[float(value) for value in row[2]],
+        count_observers_quantiles=[float(value) for value in row[3]],
+        confidence_scores_quantiles=[float(value) for value in row[4]],
+    )
+
+
+def count_cell_scores(output_path: Path) -> int:
+    con = get_connection()
+    try:
+        row = con.execute(
+            f"""
+            SELECT COUNT(*)
+            FROM parquet_scan('{output_path.resolve().as_posix()}')
+            """
+        ).fetchone()
+    finally:
+        con.close()
+
+    if row is None:
+        raise ValueError(f"No cell scores found in {output_path}")
+
+    return int(row[0])
+
+
 def write_cell_score_summary(
     resolution: int,
     summary_output_dir: Path,
@@ -316,23 +418,24 @@ def compute_cell_scores(config: CellScoreConfig) -> dict[int, CellScoreQuantiles
         )
 
     summaries: dict[int, CellScoreQuantiles] = {}
-    for resolution in config.h3_resolutions:
-        cell_scores, _elapsed_seconds = fetch_cell_data(
-            resolution=resolution,
-            observations_path=observations_path,
-            species_occupancy_path=species_occupancy_path,
-        )
-        export_scores_to_parquet(
-            resolution=resolution,
-            output_dir=output_dir,
-            cell_scores=cell_scores,
-        )
-        quantiles = summarize_cell_scores(cell_scores)
-        write_cell_score_summary(
-            resolution=resolution,
-            summary_output_dir=config.summary_output_dir.resolve(),
-            quantiles=quantiles,
-        )
-        summaries[resolution] = quantiles
+    con = get_connection()
+    try:
+        for resolution in config.h3_resolutions:
+            output_path, _elapsed_seconds = write_cell_scores_to_parquet(
+                con=con,
+                resolution=resolution,
+                observations_path=observations_path,
+                species_occupancy_path=species_occupancy_path,
+                output_dir=output_dir,
+            )
+            quantiles = get_cell_score_summary(output_path)
+            write_cell_score_summary(
+                resolution=resolution,
+                summary_output_dir=config.summary_output_dir.resolve(),
+                quantiles=quantiles,
+            )
+            summaries[resolution] = quantiles
+    finally:
+        con.close()
 
     return summaries

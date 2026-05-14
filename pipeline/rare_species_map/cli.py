@@ -374,11 +374,12 @@ def main_compute_cell_scores(argv: list[str] | None = None) -> None:
 
     from rare_species_map.cell_scores import (
         CellScoreConfig,
-        export_scores_to_parquet,
-        fetch_cell_data,
-        summarize_cell_scores,
+        count_cell_scores,
+        get_cell_score_summary,
+        write_cell_scores_to_parquet,
         write_cell_score_summary,
     )
+    from rare_species_map.duckdb_utils import get_connection
 
     config = CellScoreConfig(
         observations_path=resolved_path(args.observations),
@@ -404,52 +405,55 @@ def main_compute_cell_scores(argv: list[str] | None = None) -> None:
             f"Species occupancy parquet not found: {config.species_occupancy_path}"
         )
 
-    for resolution in config.h3_resolutions:
-        print(f"Fetching cell aggregates from DuckDB, resolution {resolution}...")
-        cell_scores, elapsed = fetch_cell_data(
-            resolution=resolution,
-            observations_path=config.observations_path,
-            species_occupancy_path=config.species_occupancy_path,
-        )
-        print()
-        print(f"  Query executed in {elapsed:.1f} seconds.")
-        print(f"  Cells loaded: {len(cell_scores.h3_indices):,}")
-        print("Exporting results to Parquet...")
-        output_path = export_scores_to_parquet(
-            resolution=resolution,
-            output_dir=config.output_dir,
-            cell_scores=cell_scores,
-        )
-        print(f"  Written to: {output_path}")
+    con = get_connection()
+    try:
+        for resolution in config.h3_resolutions:
+            print(f"Writing cell scores from DuckDB, resolution {resolution}...")
+            output_path, elapsed = write_cell_scores_to_parquet(
+                con=con,
+                resolution=resolution,
+                observations_path=config.observations_path,
+                species_occupancy_path=config.species_occupancy_path,
+                output_dir=config.output_dir,
+            )
+            n_cells = count_cell_scores(output_path)
+            print()
+            print(f"  Query and Parquet export completed in {elapsed:.1f} seconds.")
+            print(f"  Cells written: {n_cells:,}")
+            print(f"  Written to: {output_path}")
 
-        quantiles = summarize_cell_scores(cell_scores)
-        write_cell_score_summary(
-            resolution=resolution,
-            summary_output_dir=config.summary_output_dir,
-            quantiles=quantiles,
-        )
+            quantiles = get_cell_score_summary(output_path)
+            write_cell_score_summary(
+                resolution=resolution,
+                summary_output_dir=config.summary_output_dir,
+                quantiles=quantiles,
+            )
 
-        print()
-        print(f" Rarity z-score quantile 0.025: {quantiles.rarity_quantiles[0]:.4f}")
-        print(f" Rarity z-score quantile 0.975: {quantiles.rarity_quantiles[3]:.4f}")
-        print(
-            " Count observations quantile 0.975: "
-            f"{quantiles.count_observations_quantiles[2]:.0f}"
-        )
-        print(
-            f" Count species quantile 0.975: {quantiles.count_species_quantiles[2]:.0f}"
-        )
-        print(
-            f" Count observers quantile 0.975: {quantiles.count_observers_quantiles[2]:.0f}"
-        )
-        print(
-            " Confidence scores quantile 0.025: "
-            f"{quantiles.confidence_scores_quantiles[0]:.4f}"
-        )
-        print(
-            " Confidence scores quantile 0.975: "
-            f"{quantiles.confidence_scores_quantiles[2]:.4f}"
-        )
+            print()
+            print(f" Rarity z-score quantile 0.025: {quantiles.rarity_quantiles[0]:.4f}")
+            print(f" Rarity z-score quantile 0.975: {quantiles.rarity_quantiles[3]:.4f}")
+            print(
+                " Count observations quantile 0.975: "
+                f"{quantiles.count_observations_quantiles[2]:.0f}"
+            )
+            print(
+                " Count species quantile 0.975: "
+                f"{quantiles.count_species_quantiles[2]:.0f}"
+            )
+            print(
+                " Count observers quantile 0.975: "
+                f"{quantiles.count_observers_quantiles[2]:.0f}"
+            )
+            print(
+                " Confidence scores quantile 0.025: "
+                f"{quantiles.confidence_scores_quantiles[0]:.4f}"
+            )
+            print(
+                " Confidence scores quantile 0.975: "
+                f"{quantiles.confidence_scores_quantiles[2]:.4f}"
+            )
+    finally:
+        con.close()
 
     print()
     print("H3 cell score generation completed.")

@@ -1,5 +1,3 @@
-# pipeline/rare_species_map/duckdb_utils.py
-
 from __future__ import annotations
 
 import duckdb
@@ -7,11 +5,14 @@ import duckdb
 from rare_species_map.config import PIPELINE_ROOT
 
 
-def get_connection() -> duckdb.DuckDBPyConnection:
+def get_connection(
+    threads: int = 8,
+    memory_limit: str = "16GB",
+) -> duckdb.DuckDBPyConnection:
     con = duckdb.connect()
 
-    con.execute("PRAGMA threads=8")
-    con.execute("PRAGMA memory_limit='16GB'")
+    con.execute(f"PRAGMA threads={threads}")
+    con.execute(f"PRAGMA memory_limit='{memory_limit}'")
 
     extension_dir = PIPELINE_ROOT / ".duckdb" / "extensions"
     extension_dir.mkdir(parents=True, exist_ok=True)

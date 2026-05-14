@@ -14,3 +14,8 @@ dependencies = [
     "pyarrow>=24.0.0",
     "scipy>=1.17.1",
 ]
+
+[tool.pyright]
+include = ["rare_species_map", "scripts"]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"

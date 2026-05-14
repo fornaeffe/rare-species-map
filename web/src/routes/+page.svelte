@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { asset } from '$app/paths';
-  import { dev } from '$app/environment';
+  import { asset } from "$app/paths";
+  import { dev } from "$app/environment";
   import maplibregl, {
     type ExpressionSpecification,
     type FillLayerSpecification,
@@ -71,7 +71,7 @@
     count_observers_quantiles: number[];
     confidence_scores_quantiles: number[];
     species_vs_observations_quantiles: number[];
-  }
+  };
 
   const metricLabels: Record<Metric, string> = {
     rarity_zscore: "Rarity score",
@@ -96,13 +96,13 @@
   let isMapReady = $state(false);
   let tileError = $state("");
   let metric = $state<Metric>("rarity_zscore");
-  let opacity = $state(100);
+  let opacity = $state(75);
   let selectedCell = $state<SelectedCell | undefined>();
   let hoveredH3 = $state("");
   let currentResolution = $state(3);
   let cellScoresSummary = $state<CellScoresSummary | undefined>();
-  let tileSource = $state<'production' | 'local-wrangler' | 'local-assets'>(
-    dev ? 'local-assets' : 'production'
+  let tileSource = $state<"production" | "local-wrangler" | "local-assets">(
+    dev ? "local-assets" : "production",
   );
   let controlPanelOpen = $state(true);
 
@@ -115,12 +115,12 @@
     await Promise.all(
       resolutions.map(async (resolution) => {
         const response = await fetch(
-          asset(`/tiles/cell_scores_summary${resolution}.json`)
+          asset(`/tiles/cell_scores_summary${resolution}.json`),
         );
 
         if (!response.ok) {
           throw new Error(
-            `Failed to load summary for resolution ${resolution}`
+            `Failed to load summary for resolution ${resolution}`,
           );
         }
 
@@ -128,14 +128,14 @@
           (await response.json()) as CellScoresSummary;
 
         summariesByResolution.set(resolution, summary);
-      })
+      }),
     );
 
     // Inizializza lo stato con il livello 3
     const initialSummary = summariesByResolution.get(3);
 
     if (initialSummary === undefined) {
-      throw new Error('Missing summary for resolution 3');
+      throw new Error("Missing summary for resolution 3");
     }
 
     cellScoresSummary = initialSummary;
@@ -156,11 +156,11 @@
 
   function getPmtilesUrl(resolution: number): string {
     switch (tileSource) {
-      case 'production':
+      case "production":
         return `https://pmtiles-proxy.fornaeffe.workers.dev/releases/latest/download/rare_species_cells${resolution}.pmtiles`;
-      case 'local-wrangler':
+      case "local-wrangler":
         return `http://127.0.0.1:8787/releases/latest/download/rare_species_cells${resolution}.pmtiles`;
-      case 'local-assets':
+      case "local-assets":
         return asset(`/tiles/rare_species_cells${resolution}.pmtiles`);
     }
   }
@@ -238,7 +238,6 @@
     updateCellLayers();
   });
 
-
   onMount(() => {
     protocol = new Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
@@ -271,7 +270,7 @@
             source: "basemap",
             paint: {
               "raster-saturation": -0.2,
-              "raster-contrast": 0.04,
+              "raster-contrast": 0.2,
             },
           },
         ],
@@ -317,10 +316,13 @@
     map.on("zoomend", handleZoomChange);
     map.on("error", (event) => {
       const message = event.error?.message ?? "";
-      tileError = `Map error: ${message}`
+      tileError = `Map error: ${message}`;
     });
     map.on("sourcedata", (event) => {
-      if (event.sourceId?.startsWith("rare-species-source") && event.isSourceLoaded) {
+      if (
+        event.sourceId?.startsWith("rare-species-source") &&
+        event.isSourceLoaded
+      ) {
         tileError = "";
       }
     });
@@ -420,8 +422,8 @@
 
   function metricColorExpression(): ExpressionSpecification {
     if (metric === "count_observations") {
-
-      const maxCount = cellScoresSummary?.count_observations_quantiles[2] ?? 500;
+      const maxCount =
+        cellScoresSummary?.count_observations_quantiles[2] ?? 500;
 
       return [
         "interpolate",
@@ -443,7 +445,6 @@
     }
 
     if (metric === "count_species") {
-
       const maxCount = cellScoresSummary?.count_species_quantiles[2] ?? 500;
 
       return [
@@ -487,13 +488,20 @@
       "interpolate",
       ["linear"],
       ["coalesce", ["get", "rarity_zscore"], 0],
-      -q3, '#053061',
-      -q3 * 0.67, '#4575b4',
-      -q3 * 0.33, '#abd9e9',
-      0, '#f7f7f7',
-      q3 * 0.33, '#fdae61',
-      q3 * 0.67, '#d73027',
-      q3, '#67001f'
+      -q3,
+      "#053061",
+      -q3 * 0.67,
+      "#4575b4",
+      -q3 * 0.33,
+      "#abd9e9",
+      0,
+      "#f7f7f7",
+      q3 * 0.33,
+      "#fdae61",
+      q3 * 0.67,
+      "#d73027",
+      q3,
+      "#67001f",
     ];
   }
 
@@ -508,7 +516,7 @@
       ?.setLngLat(event.lngLat)
       .setHTML(
         `<strong>${formatScore(properties.rarity_zscore)}</strong> <span>(${formatCount(
-          properties.count_observations
+          properties.count_observations,
         )} observations)</span>`,
       )
       .addTo(map);
@@ -607,7 +615,11 @@
 
   <section class="topbar" aria-label="Map overview">
     <div>
-      <div class="eyebrow">Where <a href="https://www.inaturalist.org" target="_blank">iNaturalist</a> observers have seen their rarest species</div>
+      <div class="eyebrow">
+        Where <a href="https://www.inaturalist.org" target="_blank"
+          >iNaturalist</a
+        > observers have seen their rarest species
+      </div>
       <h1>Rare Species Map</h1>
     </div>
     <div class="status-pill" class:error={tileError}>
@@ -632,7 +644,11 @@
     </div>
   </section>
 
-  <aside class="control-panel" class:collapsed={!controlPanelOpen} aria-label="Map controls">
+  <aside
+    class="control-panel"
+    class:collapsed={!controlPanelOpen}
+    aria-label="Map controls"
+  >
     <div class="panel-section">
       <div class="section-title">
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -668,6 +684,14 @@
           </button>
         {/each}
       </div>
+
+      <div class="legend" aria-label="Legend">
+        <div class="legend-ramp metric-{metric}"></div>
+        <div class="legend-labels">
+          <span>Lower</span>
+          <span>Higher</span>
+        </div>
+      </div>
     </div>
 
     <div class="panel-section">
@@ -684,20 +708,14 @@
       </label>
     </div>
 
-    
-
-    <div class="legend" aria-label="Legend">
-      <div class="legend-ramp metric-{metric}"></div>
-      <div class="legend-labels">
-        <span>Lower</span>
-        <span>Higher</span>
-      </div>
-    </div>
-
-    
-
-    <a class="github-link" href="https://github.com/fornaeffe/rare-species-map" target="_blank" rel="noopener noreferrer" title="View on GitHub">
-      <img src={asset("/github.svg")} alt="GitHub" height="16"/>
+    <a
+      class="github-link"
+      href="https://github.com/fornaeffe/rare-species-map"
+      target="_blank"
+      rel="noopener noreferrer"
+      title="View on GitHub"
+    >
+      <img src={asset("/github.svg")} alt="GitHub" height="16" />
       <span>More info on GitHub</span>
     </a>
   </aside>
@@ -713,11 +731,11 @@
           type="button"
           class="close-button"
           onclick={() => {
-            selectedCell = undefined
+            selectedCell = undefined;
 
             if (!map) return;
 
-            map.setFilter(HOVER_LINE_LAYER_ID, ["==", ["get", "h3"], ""])
+            map.setFilter(HOVER_LINE_LAYER_ID, ["==", ["get", "h3"], ""]);
           }}
           aria-label="Deselect cell"
           title="Deselect cell"
@@ -754,7 +772,7 @@
           <dd>{formatCount(selectedCell.confidence_scores)}</dd>
         </div>
       </dl>
-      
+
       {#if selectedCell.h3}
         {@const inaturalistUrl = generateINaturalistUrl(selectedCell.geometry)}
         {#if inaturalistUrl}
@@ -773,8 +791,6 @@
     {:else}
       <p class="muted">No cell selected</p>
     {/if}
-
-    
   </aside>
 
   <nav class="map-actions" aria-label="Map navigation">

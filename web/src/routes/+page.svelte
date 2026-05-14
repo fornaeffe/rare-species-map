@@ -503,9 +503,7 @@
     map.getCanvas().style.cursor = "pointer";
     const feature = event.features[0];
     const properties = feature.properties as CellProperties;
-    hoveredH3 = properties.h3 ?? "";
 
-    map.setFilter(HOVER_LINE_LAYER_ID, ["==", ["get", "h3"], hoveredH3]);
     popup
       ?.setLngLat(event.lngLat)
       .setHTML(
@@ -519,15 +517,17 @@
   function clearHover() {
     if (!map) return;
     map.getCanvas().style.cursor = "";
-    hoveredH3 = "";
-    map.setFilter(HOVER_LINE_LAYER_ID, ["==", ["get", "h3"], ""]);
     popup?.remove();
   }
 
   function handleCellClick(event: LayerMouseEvent) {
-    if (!event.features?.length) return;
+    if (!map || !event.features?.length) return;
 
     const feature = event.features[0];
+    const properties = feature.properties as CellProperties;
+    hoveredH3 = properties.h3 ?? "";
+
+    map.setFilter(HOVER_LINE_LAYER_ID, ["==", ["get", "h3"], hoveredH3]);
 
     selectedCell = {
       ...(feature.properties as CellProperties),
@@ -712,7 +712,13 @@
         <button
           type="button"
           class="close-button"
-          onclick={() => (selectedCell = undefined)}
+          onclick={() => {
+            selectedCell = undefined
+
+            if (!map) return;
+
+            map.setFilter(HOVER_LINE_LAYER_ID, ["==", ["get", "h3"], ""])
+          }}
           aria-label="Deselect cell"
           title="Deselect cell"
         >

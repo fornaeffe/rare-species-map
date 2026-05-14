@@ -119,21 +119,6 @@ def build_aggregation_query(
         GROUP BY h3_res{res}
     ),
 
-    regression_data AS (
-        SELECT
-            h3_res{res},
-            ln(count_observations) AS log_count_observations,
-            ln(count_species) AS log_count_species,
-        FROM cell_metrics
-    ),
-
-    regression AS (
-        SELECT
-            regr_intercept(log_count_species, log_count_observations) AS intercept,
-            regr_slope(log_count_species, log_count_observations) AS slope
-        FROM regression_data
-    ),
-
     shannon_by_cell AS (
         SELECT
             o.h3_res{res},
@@ -203,16 +188,12 @@ def build_aggregation_query(
         cm.count_species,
         cm.count_observations,
         cm.count_observers,
-        ( 1 - EXP( - n.neff_observers / 4 ) ) * ( 1 - EXP( - cm.count_observations / 40 ) ) AS confidence_scores,
-        ( rd.log_count_species - (rd.log_count_observations * reg.slope + reg.intercept) ) AS species_vs_observations
+        ( 1 - EXP( - n.neff_observers / 4 ) ) * ( 1 - EXP( - cm.count_observations / 40 ) ) AS confidence_scores
     FROM residual_rarity_by_cell r
     JOIN neff_by_cell n
         ON r.h3_res{res} = n.h3_res{res}
     JOIN cell_metrics cm
         ON r.h3_res{res} = cm.h3_res{res}
-    JOIN regression_data rd
-         ON r.h3_res{res} = rd.h3_res{res}
-    CROSS JOIN regression reg
     ORDER BY r.h3_res{res}
     """
 
@@ -221,7 +202,7 @@ def fetch_cell_data(
     res: int,
     observations_path: Path,
     species_occupancy_path: Path,
-) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[list[int], np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Fetch aggregated cell statistics from DuckDB.
 
@@ -249,7 +230,6 @@ def fetch_cell_data(
     count_observations: list[int] = []
     count_observers: list[int] = []
     confidence_scores: list[float] = []
-    species_vs_observations: list[float] = []
 
     for row in result:
         h3_indices.append(row[0])
@@ -258,15 +238,13 @@ def fetch_cell_data(
         count_observations.append(row[3])
         count_observers.append(row[4])
         confidence_scores.append(row[5])
-        species_vs_observations.append(row[6])
     return (
         h3_indices,
         np.array(rarity_zscore, dtype=np.float64),
         np.array(count_species, dtype=np.float64),
         np.array(count_observations, dtype=np.float64),
         np.array(count_observers, dtype=np.float64),
-        np.array(confidence_scores, dtype=np.float64),
-        np.array(species_vs_observations, dtype=np.float64)
+        np.array(confidence_scores, dtype=np.float64)
     )
 
 
@@ -278,8 +256,7 @@ def export_scores_to_parquet(
     count_species: np.ndarray,
     count_observations: np.ndarray,
     count_observers: np.ndarray,
-    confidence_scores: np.ndarray,
-    species_vs_observations: np.ndarray,
+    confidence_scores: np.ndarray
 ) -> None:
     """
     Export scores to Parquet file.
@@ -299,8 +276,7 @@ def export_scores_to_parquet(
             "count_species": pa.array(count_species, type=pa.uint64()),
             "count_observations": pa.array(count_observations, type=pa.uint64()),
             "count_observers": pa.array(count_observers, type=pa.uint64()),
-            "confidence_scores": pa.array(confidence_scores, type=pa.float64()),
-            "species_vs_observations": pa.array(species_vs_observations, type=pa.float64()),
+            "confidence_scores": pa.array(confidence_scores, type=pa.float64())
         }
     )
 
@@ -340,7 +316,7 @@ def main() -> None:
     for res in H3_VISUALIZATION_RESOLUTIONS:
         # Fetch aggregated cell data from DuckDB
         print(f"Fetching cell aggregates from DuckDB, resolution {res}...")
-        h3_indices, rarity_zscore, count_species, count_observations, count_observers, confidence_scores, species_vs_observations = fetch_cell_data(
+        h3_indices, rarity_zscore, count_species, count_observations, count_observers, confidence_scores = fetch_cell_data(
             res=res,
             observations_path=observations_path,
             species_occupancy_path=species_occupancy_path,
@@ -357,8 +333,7 @@ def main() -> None:
             count_observations=count_observations,
             count_species=count_species,
             count_observers=count_observers,
-            confidence_scores=confidence_scores,
-            species_vs_observations=species_vs_observations,
+            confidence_scores=confidence_scores
         )
         print(f"  Written to: {output_path}")
 
@@ -370,8 +345,6 @@ def main() -> None:
         print(f" Count observers quantile 0.975: {np.quantile(count_observers, 0.975):.0f}")
         print(f" Confidence scores quantile 0.025: {np.quantile(confidence_scores, 0.025):.4f}")
         print(f" Confidence scores quantile 0.975: {np.quantile(confidence_scores, 0.975):.4f}")
-        print(f" Species vs observations quantile 0.025: {np.quantile(species_vs_observations, 0.025):.4f}")
-        print(f" Species vs observations quantile 0.975: {np.quantile(species_vs_observations, 0.975):.4f}")
 
         data = {
             "rarity_quantiles": [np.quantile(rarity_zscore, 0.025), np.quantile(rarity_zscore, 0.5),  np.quantile(rarity_zscore, 0.75), np.quantile(rarity_zscore, 0.975)],
@@ -379,7 +352,6 @@ def main() -> None:
             "count_species_quantiles": [np.quantile(count_species, 0.025), np.quantile(count_species, 0.5), np.quantile(count_species, 0.975)],
             "count_observers_quantiles": [np.quantile(count_observers, 0.025), np.quantile(count_observers, 0.5), np.quantile(count_observers, 0.975)],
             "confidence_scores_quantiles": [np.quantile(confidence_scores, 0.025), np.quantile(confidence_scores, 0.5), np.quantile(confidence_scores, 0.975)],
-            "species_vs_observations_quantiles": [np.quantile(species_vs_observations, 0.025), np.quantile(species_vs_observations, 0.25), np.quantile(species_vs_observations, 0.5), np.quantile(species_vs_observations, 0.75), np.quantile(species_vs_observations, 0.975)],
         }
 
         with open(GENERATED_JSONS / f"cell_scores_summary{res}.json", "w") as f:

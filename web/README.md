@@ -10,14 +10,9 @@ npm.cmd run tiles:copy
 npm.cmd run dev
 ```
 
-The default PMTiles URL is `/tiles/rare_species_cells.pmtiles`.
+Default dev environment .pmtiles and cell_scores_summary{resolution}.json
+should be placed in `static/tiles/`
 
-To use a different tile location at build/dev time:
-
-```powershell
-$env:PUBLIC_PMTILES_URL="https://example.com/rare_species_cells.pmtiles"
-npm.cmd run dev
-```
 
 ## Build
 

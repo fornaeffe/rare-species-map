@@ -90,8 +90,9 @@ Default processed outputs:
 
 - `data/processed/observations_filtered.parquet`
 - `data/processed/species_occupancy.parquet`
-- `data/processed/cell_scores.parquet`
-- `data/tiles/rare_species_cells.pmtiles`
+- `data/processed/cell_scores{resolution}.parquet`
+- `web/static/tiles/rare_species_cells{resolution}.pmtiles`
+- `web/static/tiles/cell_scores_summary{resolution}.json`
 
 ## Step 1
 
@@ -121,7 +122,7 @@ scripts/02_compute_species_occupancy.py
 Compute species occupancy and rarity.
 
 occupancy =
-number of distinct H3 resolution 7 cells occupied by each species.
+number of distinct H3 resolution 5 cells occupied by each species.
 
 rarity =
 1 / (occupancy)^0.5
@@ -138,6 +139,10 @@ scripts/03_compute_cell_scores.py
 
 Compute rarity score per H3 visualization cell.
 
+Output:
+- data/processed/cell_scores{resolution}.parquet
+- web/static/tiles/cell_scores_summary{resolution}.json
+
 
 ---
 
@@ -153,7 +158,8 @@ The script uses `freestiler` to generate PMTiles with configurable zoom levels (
 GeoJSONSeq is an intermediate debug artifact; the frontend consumes PMTiles.
 
 Output:
-data/tiles/rare_species_cells.pmtiles
+- data/tiles/rare_species_cells.pmtiles
+- web/static/tiles/rare_species_cells{resolution}.pmtiles
 
 ---
 

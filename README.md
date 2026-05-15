@@ -9,6 +9,7 @@ The application consists of:
 1. A Python geospatial preprocessing pipeline
 2. A static SPA frontend
 3. Vector tiles containing rarity scores aggregated on H3 cells
+4. A reverse proxy to add CORS to pmtiles served from GitHub Releases
 
 ---
 

@@ -17,6 +17,7 @@ data/raw/
 data/processed/
 data/tiles/
 web/static/tiles/*.pmtiles
+web/static/tiles/**/cell_scores_summary*.json
 
 # duckdb
 .duckdb/

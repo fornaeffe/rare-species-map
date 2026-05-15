@@ -14,13 +14,10 @@
   import { Protocol } from "pmtiles";
   import {
     Activity,
-    AlignVerticalJustifyCenter,
-    Bird,
     ChevronDown,
     ChevronUp,
     Eye,
     ExternalLink,
-    Github,
     Layers,
     Leaf,
     LocateFixed,
@@ -70,8 +67,10 @@
     count_species_quantiles: number[];
     count_observers_quantiles: number[];
     confidence_scores_quantiles: number[];
-    species_vs_observations_quantiles: number[];
   };
+
+  type CellScoresSummaries = Record<string, CellScoresSummary>;
+  type DataSource = "production" | "local-wrangler" | "local-assets";
 
   const metricLabels: Record<Metric, string> = {
     rarity_zscore: "Rarity score",
@@ -94,16 +93,16 @@
   let popup = $state<Popup | undefined>();
   let protocol = $state<Protocol | undefined>();
   let isMapReady = $state(false);
-  let tileError = $state("");
+  let summaryError = $state("");
+  let mapDataError = $state("");
+  let tileError = $derived(summaryError || mapDataError);
   let metric = $state<Metric>("rarity_zscore");
   let opacity = $state(75);
   let selectedCell = $state<SelectedCell | undefined>();
   let hoveredH3 = $state("");
   let currentResolution = $state(3);
   let cellScoresSummary = $state<CellScoresSummary | undefined>();
-  let tileSource = $state<"production" | "local-wrangler" | "local-assets">(
-    dev ? "local-assets" : "production",
-  );
+  let dataSource = $state<DataSource>(dev ? "local-assets" : "production");
   let controlPanelOpen = $state(true);
   let showExplanationModal = $state(false);
 
@@ -111,41 +110,28 @@
   const summariesByResolution = new Map<number, CellScoresSummary>();
 
   async function loadCellScoresSummaries(): Promise<void> {
-    const resolutions = [3, 4, 5, 6, 7];
+    const response = await fetch(getSummaryUrl());
 
-    await Promise.all(
-      resolutions.map(async (resolution) => {
-        const response = await fetch(
-          asset(`/tiles/cell_scores_summary${resolution}.json`),
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            `Failed to load summary for resolution ${resolution}`,
-          );
-        }
-
-        const summary: CellScoresSummary =
-          (await response.json()) as CellScoresSummary;
-
-        summariesByResolution.set(resolution, summary);
-      }),
-    );
-
-    // Inizializza lo stato con il livello 3
-    const initialSummary = summariesByResolution.get(3);
-
-    if (initialSummary === undefined) {
-      throw new Error("Missing summary for resolution 3");
+    if (!response.ok) {
+      throw new Error(`Failed to load summaries from ${getSummaryUrl()}`);
     }
 
-    cellScoresSummary = initialSummary;
-  }
+    const summaries = (await response.json()) as CellScoresSummaries;
 
-  loadCellScoresSummaries().catch((error) => {
-    console.error("Error loading cell scores summaries:", error);
-    tileError = "Failed to load cell scores summaries.";
-  });
+    summariesByResolution.clear();
+    for (const [resolution, summary] of Object.entries(summaries)) {
+      summariesByResolution.set(Number(resolution), summary);
+    }
+
+    const summary = summariesByResolution.get(currentResolution);
+    if (summary === undefined) {
+      throw new Error(`Missing summary for resolution ${currentResolution}`);
+    }
+
+    cellScoresSummary = summary;
+    summaryError = "";
+    updateCellLayers();
+  }
 
   function getResolutionForZoom(zoom: number): number {
     if (zoom >= 8) return 7;
@@ -155,15 +141,23 @@
     return 3;
   }
 
-  function getPmtilesUrl(resolution: number): string {
-    switch (tileSource) {
+  function getDataUrl(fileName: string): string {
+    switch (dataSource) {
       case "production":
-        return `https://pmtiles-proxy.fornaeffe.workers.dev/releases/latest/download/rare_species_cells${resolution}.pmtiles`;
+        return `https://pmtiles-proxy.fornaeffe.workers.dev/releases/latest/download/${fileName}`;
       case "local-wrangler":
-        return `http://127.0.0.1:8787/releases/latest/download/rare_species_cells${resolution}.pmtiles`;
+        return `http://127.0.0.1:8787/releases/latest/download/${fileName}`;
       case "local-assets":
-        return asset(`/tiles/rare_species_cells${resolution}.pmtiles`);
+        return asset(`/tiles/${fileName}`);
     }
+  }
+
+  function getSummaryUrl(): string {
+    return getDataUrl("cell_scores_summary.json");
+  }
+
+  function getPmtilesUrl(resolution: number): string {
+    return getDataUrl(`rare_species_cells${resolution}.pmtiles`);
   }
 
   function getCurrentResolution(): number {
@@ -225,7 +219,12 @@
   }
 
   $effect(() => {
-    tileSource;
+    dataSource;
+    loadCellScoresSummaries().catch((error) => {
+      console.error("Error loading cell scores summaries:", error);
+      summaryError = "Failed to load cell scores summaries.";
+    });
+
     if (!isMapReady) return;
     recreatePmtilesSources();
   });
@@ -317,14 +316,14 @@
     map.on("zoomend", handleZoomChange);
     map.on("error", (event) => {
       const message = event.error?.message ?? "";
-      tileError = `Map error: ${message}`;
+      mapDataError = `Map error: ${message}`;
     });
     map.on("sourcedata", (event) => {
       if (
         event.sourceId?.startsWith("rare-species-source") &&
         event.isSourceLoaded
       ) {
-        tileError = "";
+        mapDataError = "";
       }
     });
 
@@ -625,12 +624,12 @@
     </div>
     <div class="status-pill" class:error={tileError}>
       <span class="status-dot"></span>
-      {tileError ? "Tile source issue" : "PMTiles vector source"}
+      {tileError ? "Data source issue" : "Map data source"}
       {#if dev}
         <div class="tile-source-select">
           <select
             id="tile-source-select"
-            bind:value={tileSource}
+            bind:value={dataSource}
             style="width: 100%; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; border: 1px solid var(--color-border); font-size: 0.875rem;"
           >
             <option value="production">Production Proxy</option>
@@ -638,9 +637,6 @@
             <option value="local-assets">Local Assets</option>
           </select>
         </div>
-      {/if}
-      {#if tileError}
-        <p class="tile-error">{tileError}</p>
       {/if}
     </div>
   </section>

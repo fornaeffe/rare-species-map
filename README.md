@@ -9,7 +9,7 @@ The application consists of:
 1. A Python geospatial preprocessing pipeline
 2. A static SPA frontend
 3. Vector tiles containing rarity scores aggregated on H3 cells
-4. A reverse proxy to add CORS to pmtiles served from GitHub Releases
+4. A reverse proxy to add CORS to the generated data package served from GitHub Releases
 
 ---
 
@@ -148,7 +148,7 @@ while preserving geographically meaningful ecological signals.
 
 All the code inside this repo is released under GPL-3.0 license.
 
-Generated pmtiles (available in Releases) are under CC BY-NC 4.0 license.
+Generated PMTiles and summary JSON files (available in Releases) are under CC BY-NC 4.0 license.
 
 # Data source
 

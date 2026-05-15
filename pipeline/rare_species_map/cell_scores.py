@@ -4,7 +4,7 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NamedTuple
+from typing import Mapping, NamedTuple
 
 import duckdb
 import h3
@@ -20,6 +20,7 @@ from rare_species_map.duckdb_utils import get_connection
 
 
 DEFAULT_DIAGNOSTICS_DIR = DATA_PROCESSED / "diagnostics" / "cell_scores"
+CELL_SCORES_SUMMARY_FILENAME = "cell_scores_summary.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -390,15 +391,18 @@ def count_cell_scores(output_path: Path) -> int:
     return int(row[0])
 
 
-def write_cell_score_summary(
-    resolution: int,
+def write_cell_score_summaries(
     summary_output_dir: Path,
-    quantiles: CellScoreQuantiles,
+    summaries: Mapping[int, CellScoreQuantiles],
 ) -> Path:
     summary_output_dir.mkdir(parents=True, exist_ok=True)
-    summary_path = summary_output_dir / f"cell_scores_summary{resolution}.json"
+    summary_path = summary_output_dir / CELL_SCORES_SUMMARY_FILENAME
+    payload = {
+        str(resolution): summaries[resolution]._asdict()
+        for resolution in sorted(summaries)
+    }
     summary_path.write_text(
-        json.dumps(quantiles._asdict()),
+        json.dumps(payload),
         encoding="utf-8",
     )
     return summary_path
@@ -429,13 +433,12 @@ def compute_cell_scores(config: CellScoreConfig) -> dict[int, CellScoreQuantiles
                 output_dir=output_dir,
             )
             quantiles = get_cell_score_summary(output_path)
-            write_cell_score_summary(
-                resolution=resolution,
-                summary_output_dir=config.summary_output_dir.resolve(),
-                quantiles=quantiles,
-            )
             summaries[resolution] = quantiles
     finally:
         con.close()
 
+    write_cell_score_summaries(
+        summary_output_dir=config.summary_output_dir.resolve(),
+        summaries=summaries,
+    )
     return summaries

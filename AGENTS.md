@@ -91,7 +91,7 @@ Default processed outputs:
 - `data/processed/species_occupancy.parquet`
 - `data/processed/cell_scores{resolution}.parquet`
 - `web/static/tiles/rare_species_cells{resolution}.pmtiles`
-- `web/static/tiles/cell_scores_summary{resolution}.json`
+- `web/static/tiles/cell_scores_summary.json`
 
 ## Step 1
 
@@ -140,7 +140,7 @@ Compute rarity score per H3 visualization cell.
 
 Output:
 - data/processed/cell_scores{resolution}.parquet
-- web/static/tiles/cell_scores_summary{resolution}.json
+- web/static/tiles/cell_scores_summary.json
 
 
 ---

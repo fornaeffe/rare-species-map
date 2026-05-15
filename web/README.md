@@ -10,8 +10,8 @@ npm.cmd run tiles:copy
 npm.cmd run dev
 ```
 
-Default dev environment .pmtiles and cell_scores_summary{resolution}.json
-should be placed in `static/tiles/`
+Default dev environment `.pmtiles` and `cell_scores_summary.json` should be
+placed in `static/tiles/`.
 
 
 ## Build

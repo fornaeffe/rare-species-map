@@ -76,7 +76,7 @@ def cell_scores_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--summary-output-dir",
         default=str(DATA_TILES),
-        help="Output directory for cell score summary JSON files",
+        help="Output directory for the merged cell score summary JSON file",
     )
     parser.add_argument(
         "--diagnostics-output-dir",
@@ -189,7 +189,7 @@ def run_pipeline_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cell-scores-summary-output",
         default=str(DATA_TILES),
-        help="Step 3 summary JSON output directory",
+        help="Step 3 merged summary JSON output directory",
     )
     parser.add_argument(
         "--diagnostics-output-dir",
@@ -377,7 +377,7 @@ def main_compute_cell_scores(argv: list[str] | None = None) -> None:
         count_cell_scores,
         get_cell_score_summary,
         write_cell_scores_to_parquet,
-        write_cell_score_summary,
+        write_cell_score_summaries,
     )
     from rare_species_map.duckdb_utils import get_connection
 
@@ -405,6 +405,7 @@ def main_compute_cell_scores(argv: list[str] | None = None) -> None:
             f"Species occupancy parquet not found: {config.species_occupancy_path}"
         )
 
+    summaries = {}
     con = get_connection()
     try:
         for resolution in config.h3_resolutions:
@@ -423,11 +424,7 @@ def main_compute_cell_scores(argv: list[str] | None = None) -> None:
             print(f"  Written to: {output_path}")
 
             quantiles = get_cell_score_summary(output_path)
-            write_cell_score_summary(
-                resolution=resolution,
-                summary_output_dir=config.summary_output_dir,
-                quantiles=quantiles,
-            )
+            summaries[resolution] = quantiles
 
             print()
             print(f" Rarity z-score quantile 0.025: {quantiles.rarity_quantiles[0]:.4f}")
@@ -455,6 +452,12 @@ def main_compute_cell_scores(argv: list[str] | None = None) -> None:
     finally:
         con.close()
 
+    summary_path = write_cell_score_summaries(
+        summary_output_dir=config.summary_output_dir,
+        summaries=summaries,
+    )
+    print()
+    print(f"Summary JSON written to: {summary_path}")
     print()
     print("H3 cell score generation completed.")
 

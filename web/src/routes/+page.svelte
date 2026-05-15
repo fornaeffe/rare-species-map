@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount } from "svelte";
   import { asset } from "$app/paths";
   import { dev } from "$app/environment";
   import maplibregl, {
@@ -101,37 +101,44 @@
   let selectedCell = $state<SelectedCell | undefined>();
   let hoveredH3 = $state("");
   let currentResolution = $state(3);
-  let cellScoresSummary = $state<CellScoresSummary | undefined>();
   let dataSource = $state<DataSource>(dev ? "local-assets" : "production");
+  let summariesByResolution = $state<CellScoresSummaries>({});
+  let cellScoresSummary = $derived(
+    summariesByResolution[String(currentResolution)],
+  );
   let controlPanelOpen = $state(true);
   let showExplanationModal = $state(false);
-
-  // Cache dei summary caricati
-  const summariesByResolution = new Map<number, CellScoresSummary>();
+  let summaryRequestId = 0;
 
   async function loadCellScoresSummaries(source: DataSource): Promise<void> {
-    const response = await fetch(getSummaryUrl(source));
+    const requestId = ++summaryRequestId;
+    const url = getSummaryUrl(source);
 
-    if (!response.ok) {
-      throw new Error(`Failed to load summaries from ${getSummaryUrl(source)}`);
+    try {
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Failed to load summaries from ${url}`);
+      }
+
+      const summaries = (await response.json()) as CellScoresSummaries;
+      const resolution = currentResolution;
+
+      if (summaries[String(resolution)] === undefined) {
+        throw new Error(`Missing summary for resolution ${resolution}`);
+      }
+
+      if (requestId !== summaryRequestId || source !== dataSource) return;
+
+      summariesByResolution = summaries;
+      summaryError = "";
+      updateCellLayers();
+    } catch (error) {
+      if (requestId !== summaryRequestId || source !== dataSource) return;
+
+      console.error("Error loading cell scores summaries:", error);
+      summaryError = "Failed to load cell scores summaries.";
     }
-
-    const summaries = (await response.json()) as CellScoresSummaries;
-
-    summariesByResolution.clear();
-    for (const [resolution, summary] of Object.entries(summaries)) {
-      summariesByResolution.set(Number(resolution), summary);
-    }
-
-    const resolution = untrack(() => currentResolution);
-    const summary = summariesByResolution.get(resolution);
-    if (summary === undefined) {
-      throw new Error(`Missing summary for resolution ${resolution}`);
-    }
-
-    cellScoresSummary = summary;
-    summaryError = "";
-    untrack(updateCellLayers);
   }
 
   function getResolutionForZoom(zoom: number): number {
@@ -161,6 +168,20 @@
     return getDataUrl(source, `rare_species_cells${resolution}.pmtiles`);
   }
 
+  function handleDataSourceChange(event: Event) {
+    const source = (event.currentTarget as HTMLSelectElement)
+      .value as DataSource;
+
+    if (source === dataSource) return;
+
+    dataSource = source;
+    summaryError = "";
+    summariesByResolution = {};
+
+    void loadCellScoresSummaries(source);
+    recreatePmtilesSources(source, currentResolution);
+  }
+
   function getCurrentResolution(): number {
     return getResolutionForZoom(map?.getZoom() ?? 0);
   }
@@ -173,7 +194,6 @@
 
     if (newResolution !== currentResolution) {
       currentResolution = newResolution;
-      cellScoresSummary = summariesByResolution.get(newResolution);
       swapLayersToResolution(newResolution);
     }
   }
@@ -219,32 +239,19 @@
     addCellLayers(resolution);
   }
 
-  $effect(() => {
-    const source = dataSource;
-
-    loadCellScoresSummaries(source).catch((error) => {
-      console.error("Error loading cell scores summaries:", error);
-      summaryError = "Failed to load cell scores summaries.";
-    });
-  });
-
-  $effect(() => {
-    dataSource;
-    isMapReady;
-    if (!isMapReady) return;
-    untrack(() => recreatePmtilesSources(dataSource, currentResolution));
-  });
-
-  $effect(() => {
-    metric;
-    opacity;
-    isMapReady;
-
-    if (!isMapReady) return;
+  function setMetric(nextMetric: Metric) {
+    metric = nextMetric;
     updateCellLayers();
-  });
+  }
+
+  function setOpacity(nextOpacity: number) {
+    opacity = nextOpacity;
+    updateCellLayers();
+  }
 
   onMount(() => {
+    void loadCellScoresSummaries(dataSource);
+
     protocol = new Protocol();
     maplibregl.addProtocol("pmtiles", protocol.tile);
 
@@ -635,7 +642,8 @@
         <div class="tile-source-select">
           <select
             id="tile-source-select"
-            bind:value={dataSource}
+            value={dataSource}
+            onchange={handleDataSourceChange}
             style="width: 100%; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; border: 1px solid var(--color-border); font-size: 0.875rem;"
           >
             <option value="production">Production Proxy</option>
@@ -680,7 +688,7 @@
             type="button"
             class:active={metric === key}
             aria-pressed={metric === key}
-            onclick={() => (metric = key as Metric)}
+            onclick={() => setMetric(key as Metric)}
           >
             <MetricIcon size={15} />
             <span>{label}</span>
@@ -706,7 +714,7 @@
           min="0"
           max="100"
           value={opacity}
-          oninput={(event) => (opacity = event.currentTarget.valueAsNumber)}
+          oninput={(event) => setOpacity(event.currentTarget.valueAsNumber)}
         />
       </label>
     </div>

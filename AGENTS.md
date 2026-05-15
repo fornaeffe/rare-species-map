@@ -59,7 +59,6 @@ rarity-map/
 ├── data/
 │   ├── raw/
 │   ├── processed/
-│   └── tiles/
 │
 ├── pipeline/
 │   ├── pyproject.toml

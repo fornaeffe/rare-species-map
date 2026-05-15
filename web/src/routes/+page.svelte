@@ -144,8 +144,7 @@
   function getDataUrl(fileName: string): string {
     switch (dataSource) {
       case "production":
-        return '';
-        // return `https://pmtiles-proxy.fornaeffe.workers.dev/releases/latest/download/${fileName}`;
+        return `https://pmtiles-proxy.fornaeffe.workers.dev/releases/latest/download/${fileName}`;
       case "local-wrangler":
         return `http://127.0.0.1:8787/releases/latest/download/${fileName}`;
       case "local-assets":

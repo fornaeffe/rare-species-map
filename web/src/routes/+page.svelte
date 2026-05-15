@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { asset } from "$app/paths";
   import { dev } from "$app/environment";
   import maplibregl, {
@@ -109,11 +109,11 @@
   // Cache dei summary caricati
   const summariesByResolution = new Map<number, CellScoresSummary>();
 
-  async function loadCellScoresSummaries(): Promise<void> {
-    const response = await fetch(getSummaryUrl());
+  async function loadCellScoresSummaries(source: DataSource): Promise<void> {
+    const response = await fetch(getSummaryUrl(source));
 
     if (!response.ok) {
-      throw new Error(`Failed to load summaries from ${getSummaryUrl()}`);
+      throw new Error(`Failed to load summaries from ${getSummaryUrl(source)}`);
     }
 
     const summaries = (await response.json()) as CellScoresSummaries;
@@ -123,14 +123,15 @@
       summariesByResolution.set(Number(resolution), summary);
     }
 
-    const summary = summariesByResolution.get(currentResolution);
+    const resolution = untrack(() => currentResolution);
+    const summary = summariesByResolution.get(resolution);
     if (summary === undefined) {
-      throw new Error(`Missing summary for resolution ${currentResolution}`);
+      throw new Error(`Missing summary for resolution ${resolution}`);
     }
 
     cellScoresSummary = summary;
     summaryError = "";
-    updateCellLayers();
+    untrack(updateCellLayers);
   }
 
   function getResolutionForZoom(zoom: number): number {
@@ -141,8 +142,8 @@
     return 3;
   }
 
-  function getDataUrl(fileName: string): string {
-    switch (dataSource) {
+  function getDataUrl(source: DataSource, fileName: string): string {
+    switch (source) {
       case "production":
         return `https://pmtiles-proxy.fornaeffe.workers.dev/releases/latest/download/${fileName}`;
       case "local-wrangler":
@@ -152,12 +153,12 @@
     }
   }
 
-  function getSummaryUrl(): string {
-    return getDataUrl("cell_scores_summary.json");
+  function getSummaryUrl(source: DataSource): string {
+    return getDataUrl(source, "cell_scores_summary.json");
   }
 
-  function getPmtilesUrl(resolution: number): string {
-    return getDataUrl(`rare_species_cells${resolution}.pmtiles`);
+  function getPmtilesUrl(source: DataSource, resolution: number): string {
+    return getDataUrl(source, `rare_species_cells${resolution}.pmtiles`);
   }
 
   function getCurrentResolution(): number {
@@ -188,7 +189,7 @@
     addCellLayers(resolution);
   }
 
-  function recreatePmtilesSources() {
+  function recreatePmtilesSources(source: DataSource, resolution: number) {
     if (!map || !isMapReady) return;
 
     // Rimuovi i layer
@@ -207,7 +208,7 @@
     for (const res of RESOLUTIONS) {
       map.addSource(sourceId(res), {
         type: "vector",
-        url: `pmtiles://${getPmtilesUrl(res)}`,
+        url: `pmtiles://${getPmtilesUrl(source, res)}`,
         promoteId: "h3",
         attribution:
           'Luca Fornasari, from GBIF data (<a href="https://doi.org/10.15468/dl.v2j3ye">https://doi.org/10.15468/dl.v2j3ye</a>)',
@@ -215,18 +216,23 @@
     }
 
     // Ricrea i layer con la risoluzione corrente
-    addCellLayers(currentResolution);
+    addCellLayers(resolution);
   }
 
   $effect(() => {
-    dataSource;
-    loadCellScoresSummaries().catch((error) => {
+    const source = dataSource;
+
+    loadCellScoresSummaries(source).catch((error) => {
       console.error("Error loading cell scores summaries:", error);
       summaryError = "Failed to load cell scores summaries.";
     });
+  });
 
+  $effect(() => {
+    dataSource;
+    isMapReady;
     if (!isMapReady) return;
-    recreatePmtilesSources();
+    untrack(() => recreatePmtilesSources(dataSource, currentResolution));
   });
 
   $effect(() => {
@@ -297,7 +303,7 @@
       for (const res of RESOLUTIONS) {
         map!.addSource(sourceId(res), {
           type: "vector",
-          url: `pmtiles://${getPmtilesUrl(res)}`,
+          url: `pmtiles://${getPmtilesUrl(dataSource, res)}`,
           promoteId: "h3",
           attribution:
             'Luca Fornasari, from GBIF data (<a href="https://doi.org/10.15468/dl.v2j3ye">https://doi.org/10.15468/dl.v2j3ye</a>)',
